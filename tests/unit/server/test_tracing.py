@@ -3,7 +3,7 @@
 Tests cover:
 - ServerSettings.tracing field defaults and env var
 - --tracing / --no-tracing CLI argument handling
-- AirmanFastMCP.call_tool() token extraction and ContextVar management
+- PgPacerFastMCP.call_tool() token extraction and ContextVar management
 - create_mcp_server() class selection based on tracing flag
 - SET application_name injection in sql_driver._execute_with_connection()
   (session-level via autocommit, not SET LOCAL)
@@ -15,8 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from mcp.server.fastmcp import FastMCP
 
-from pg_airman_mcp.server import AirmanFastMCP, ServerSettings, create_mcp_server
-from pg_airman_mcp.sql import DbConnPool, SqlDriver, tracing_application_name
+from pgpacer.server import PgPacerFastMCP, ServerSettings, create_mcp_server
+from pgpacer.sql import DbConnPool, SqlDriver, tracing_application_name
 
 
 class TestTracingSettings:
@@ -33,8 +33,8 @@ class TestTracingSettings:
         assert s.tracing is True
 
     def test_env_var(self, monkeypatch):
-        """AIRMAN_MCP_TRACING env var enables tracing."""
-        monkeypatch.setenv("AIRMAN_MCP_TRACING", "true")
+        """PGPACER_TRACING env var enables tracing."""
+        monkeypatch.setenv("PGPACER_TRACING", "true")
         s = ServerSettings()
         assert s.tracing is True
 
@@ -45,12 +45,12 @@ class TestTracingCLIArg:
     @pytest.mark.asyncio
     async def test_tracing_cli_sets_true(self):
         """--tracing CLI arg sets settings.tracing to True."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch(
                 "sys.argv",
                 ["server.py", "postgresql://test", "--tracing"],
@@ -77,7 +77,7 @@ class TestTracingCLIArg:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit) as exc:
@@ -89,12 +89,12 @@ class TestTracingCLIArg:
     @pytest.mark.asyncio
     async def test_no_tracing_cli_sets_false(self):
         """--no-tracing CLI arg sets settings.tracing to False."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch(
                 "sys.argv",
                 ["server.py", "postgresql://test", "--no-tracing"],
@@ -121,7 +121,7 @@ class TestTracingCLIArg:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit) as exc:
@@ -133,12 +133,12 @@ class TestTracingCLIArg:
     @pytest.mark.asyncio
     async def test_tracing_passed_to_create_mcp_server(self):
         """--tracing flag is forwarded to create_mcp_server()."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch(
                 "sys.argv",
                 ["server.py", "postgresql://test", "--tracing"],
@@ -165,7 +165,7 @@ class TestTracingCLIArg:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit) as exc:
@@ -177,13 +177,13 @@ class TestTracingCLIArg:
             assert call_kwargs["tracing"] is True
 
 
-class TestAirmanFastMCPCallTool:
-    """Test AirmanFastMCP.call_tool() token extraction and ContextVar."""
+class TestPgPacerFastMCPCallTool:
+    """Test PgPacerFastMCP.call_tool() token extraction and ContextVar."""
 
     @pytest.mark.asyncio
     async def test_extracts_session_token_from_meta(self):
         """Session token is extracted from _meta.sessionId."""
-        server = AirmanFastMCP("test-server", fallback_token="fallback-uuid")
+        server = PgPacerFastMCP("test-server", fallback_token="fallback-uuid")
 
         mock_meta = MagicMock()
         mock_meta.model_extra = {"sessionId": "abc123"}
@@ -199,19 +199,19 @@ class TestAirmanFastMCPCallTool:
             return []
 
         with (
-            patch.object(AirmanFastMCP, "get_context", return_value=mock_ctx),
+            patch.object(PgPacerFastMCP, "get_context", return_value=mock_ctx),
             patch.object(FastMCP, "call_tool", new_callable=AsyncMock) as mock_super,
         ):
             mock_super.side_effect = capture_contextvar
             await server.call_tool("test_tool", {})
 
-        # Format: airman:_/<session-short> (no purpose, 8-char session)
-        assert captured["app_name"] == "airman:_/abc123"
+        # Format: pgpacer:_/<session-short> (no purpose, 8-char session)
+        assert captured["app_name"] == "pgpacer:_/abc123"
 
     @pytest.mark.asyncio
     async def test_fallback_token_when_meta_is_none(self):
         """Fallback token is used when meta is None."""
-        server = AirmanFastMCP("test-server", fallback_token="fallback-uuid")
+        server = PgPacerFastMCP("test-server", fallback_token="fallback-uuid")
 
         mock_request_context = MagicMock()
         mock_request_context.meta = None
@@ -225,19 +225,19 @@ class TestAirmanFastMCPCallTool:
             return []
 
         with (
-            patch.object(AirmanFastMCP, "get_context", return_value=mock_ctx),
+            patch.object(PgPacerFastMCP, "get_context", return_value=mock_ctx),
             patch.object(FastMCP, "call_tool", new_callable=AsyncMock) as mock_super,
         ):
             mock_super.side_effect = capture_contextvar
             await server.call_tool("test_tool", {})
 
-        # Format: airman:_/<session-short> (8-char truncation of fallback-uuid)
-        assert captured["app_name"] == "airman:_/fallback"
+        # Format: pgpacer:_/<session-short> (8-char truncation of fallback-uuid)
+        assert captured["app_name"] == "pgpacer:_/fallback"
 
     @pytest.mark.asyncio
     async def test_fallback_token_when_session_token_key_missing(self):
         """Fallback token is used when model_extra has no sessionId."""
-        server = AirmanFastMCP("test-server", fallback_token="fallback-uuid")
+        server = PgPacerFastMCP("test-server", fallback_token="fallback-uuid")
 
         mock_meta = MagicMock()
         mock_meta.model_extra = {}
@@ -253,19 +253,19 @@ class TestAirmanFastMCPCallTool:
             return []
 
         with (
-            patch.object(AirmanFastMCP, "get_context", return_value=mock_ctx),
+            patch.object(PgPacerFastMCP, "get_context", return_value=mock_ctx),
             patch.object(FastMCP, "call_tool", new_callable=AsyncMock) as mock_super,
         ):
             mock_super.side_effect = capture_contextvar
             await server.call_tool("test_tool", {})
 
-        # Format: airman:_/<session-short> (8-char truncation of fallback-uuid)
-        assert captured["app_name"] == "airman:_/fallback"
+        # Format: pgpacer:_/<session-short> (8-char truncation of fallback-uuid)
+        assert captured["app_name"] == "pgpacer:_/fallback"
 
     @pytest.mark.asyncio
     async def test_composes_token_with_purpose(self):
-        """app_name is airman:<purpose>/<session-short> when purpose is set."""
-        server = AirmanFastMCP(
+        """app_name is pgpacer:<purpose>/<session-short> when purpose is set."""
+        server = PgPacerFastMCP(
             "test-server", purpose="my-app", fallback_token="fallback-uuid"
         )
 
@@ -283,19 +283,19 @@ class TestAirmanFastMCPCallTool:
             return []
 
         with (
-            patch.object(AirmanFastMCP, "get_context", return_value=mock_ctx),
+            patch.object(PgPacerFastMCP, "get_context", return_value=mock_ctx),
             patch.object(FastMCP, "call_tool", new_callable=AsyncMock) as mock_super,
         ):
             mock_super.side_effect = capture_contextvar
             await server.call_tool("test_tool", {})
 
-        # Format: airman:<purpose>/<session-short>
-        assert captured["app_name"] == "airman:my-app/abc123"
+        # Format: pgpacer:<purpose>/<session-short>
+        assert captured["app_name"] == "pgpacer:my-app/abc123"
 
     @pytest.mark.asyncio
     async def test_token_only_when_purpose_is_none(self):
-        """app_name is airman:_/<session-short> when purpose is None."""
-        server = AirmanFastMCP(
+        """app_name is pgpacer:_/<session-short> when purpose is None."""
+        server = PgPacerFastMCP(
             "test-server", purpose=None, fallback_token="fallback-uuid"
         )
 
@@ -313,19 +313,19 @@ class TestAirmanFastMCPCallTool:
             return []
 
         with (
-            patch.object(AirmanFastMCP, "get_context", return_value=mock_ctx),
+            patch.object(PgPacerFastMCP, "get_context", return_value=mock_ctx),
             patch.object(FastMCP, "call_tool", new_callable=AsyncMock) as mock_super,
         ):
             mock_super.side_effect = capture_contextvar
             await server.call_tool("test_tool", {})
 
-        # Format: airman:_/<session-short> (no purpose)
-        assert captured["app_name"] == "airman:_/abc123"
+        # Format: pgpacer:_/<session-short> (no purpose)
+        assert captured["app_name"] == "pgpacer:_/abc123"
 
     @pytest.mark.asyncio
     async def test_contextvar_set_during_tool_execution(self):
         """ContextVar is set to the expected value during super().call_tool()."""
-        server = AirmanFastMCP("test-server", fallback_token="fallback-uuid")
+        server = PgPacerFastMCP("test-server", fallback_token="fallback-uuid")
 
         mock_meta = MagicMock()
         mock_meta.model_extra = {"sessionId": "traced-token"}
@@ -341,19 +341,19 @@ class TestAirmanFastMCPCallTool:
             return []
 
         with (
-            patch.object(AirmanFastMCP, "get_context", return_value=mock_ctx),
+            patch.object(PgPacerFastMCP, "get_context", return_value=mock_ctx),
             patch.object(FastMCP, "call_tool", new_callable=AsyncMock) as mock_super,
         ):
             mock_super.side_effect = capture_contextvar
             await server.call_tool("test_tool", {})
 
-        # Format: airman:_/<session-short> (8-char truncation of traced-token)
-        assert captured["app_name"] == "airman:_/traced-t"
+        # Format: pgpacer:_/<session-short> (8-char truncation of traced-token)
+        assert captured["app_name"] == "pgpacer:_/traced-t"
 
     @pytest.mark.asyncio
     async def test_contextvar_reset_after_execution(self):
         """ContextVar is reset to None after call_tool completes."""
-        server = AirmanFastMCP("test-server", fallback_token="fallback-uuid")
+        server = PgPacerFastMCP("test-server", fallback_token="fallback-uuid")
 
         mock_meta = MagicMock()
         mock_meta.model_extra = {"sessionId": "abc123"}
@@ -363,7 +363,7 @@ class TestAirmanFastMCPCallTool:
         mock_ctx.request_context = mock_request_context
 
         with (
-            patch.object(AirmanFastMCP, "get_context", return_value=mock_ctx),
+            patch.object(PgPacerFastMCP, "get_context", return_value=mock_ctx),
             patch.object(FastMCP, "call_tool", new_callable=AsyncMock) as mock_super,
         ):
             mock_super.return_value = []
@@ -374,7 +374,7 @@ class TestAirmanFastMCPCallTool:
     @pytest.mark.asyncio
     async def test_contextvar_reset_on_exception(self):
         """ContextVar is reset even when super().call_tool() raises."""
-        server = AirmanFastMCP("test-server", fallback_token="fallback-uuid")
+        server = PgPacerFastMCP("test-server", fallback_token="fallback-uuid")
 
         mock_meta = MagicMock()
         mock_meta.model_extra = {"sessionId": "abc123"}
@@ -384,7 +384,7 @@ class TestAirmanFastMCPCallTool:
         mock_ctx.request_context = mock_request_context
 
         with (
-            patch.object(AirmanFastMCP, "get_context", return_value=mock_ctx),
+            patch.object(PgPacerFastMCP, "get_context", return_value=mock_ctx),
             patch.object(FastMCP, "call_tool", new_callable=AsyncMock) as mock_super,
         ):
             mock_super.side_effect = RuntimeError("tool failed")
@@ -396,7 +396,7 @@ class TestAirmanFastMCPCallTool:
     @pytest.mark.asyncio
     async def test_fallback_token_when_get_context_raises(self):
         """Fallback token is used when get_context() raises."""
-        server = AirmanFastMCP("test-server", fallback_token="fallback-uuid")
+        server = PgPacerFastMCP("test-server", fallback_token="fallback-uuid")
 
         captured: dict[str, str | None] = {}
 
@@ -406,7 +406,7 @@ class TestAirmanFastMCPCallTool:
 
         with (
             patch.object(
-                AirmanFastMCP,
+                PgPacerFastMCP,
                 "get_context",
                 side_effect=RuntimeError("no context"),
             ),
@@ -415,13 +415,13 @@ class TestAirmanFastMCPCallTool:
             mock_super.side_effect = capture_contextvar
             await server.call_tool("test_tool", {})
 
-        # Format: airman:_/<session-short> (8-char truncation of fallback-uuid)
-        assert captured["app_name"] == "airman:_/fallback"
+        # Format: pgpacer:_/<session-short> (8-char truncation of fallback-uuid)
+        assert captured["app_name"] == "pgpacer:_/fallback"
 
     @pytest.mark.asyncio
     async def test_null_session_id_uses_fallback(self):
         """Fallback token is used when sessionId is explicitly None."""
-        server = AirmanFastMCP("test-server", fallback_token="fallback-uuid")
+        server = PgPacerFastMCP("test-server", fallback_token="fallback-uuid")
 
         mock_meta = MagicMock()
         mock_meta.model_extra = {"sessionId": None}
@@ -437,20 +437,20 @@ class TestAirmanFastMCPCallTool:
             return []
 
         with (
-            patch.object(AirmanFastMCP, "get_context", return_value=mock_ctx),
+            patch.object(PgPacerFastMCP, "get_context", return_value=mock_ctx),
             patch.object(FastMCP, "call_tool", new_callable=AsyncMock) as mock_super,
         ):
             mock_super.side_effect = capture_contextvar
             await server.call_tool("test_tool", {})
 
-        # sessionId=None should fall back, not produce "airman:_/None"
-        assert captured["app_name"] == "airman:_/fallback"
+        # sessionId=None should fall back, not produce "pgpacer:_/None"
+        assert captured["app_name"] == "pgpacer:_/fallback"
 
     def test_default_fallback_token_is_uuid(self):
         """Fallback token is a UUID when not explicitly provided."""
         import uuid
 
-        server = AirmanFastMCP("test-server")
+        server = PgPacerFastMCP("test-server")
         # Verify it parses as a valid UUID
         parsed = uuid.UUID(server._fallback_token)  # type: ignore[reportPrivateUsage]
         assert str(parsed) == server._fallback_token  # type: ignore[reportPrivateUsage]
@@ -459,36 +459,36 @@ class TestAirmanFastMCPCallTool:
 class TestCreateMcpServerTracing:
     """Test create_mcp_server() class selection based on tracing flag."""
 
-    def test_tracing_true_returns_airman_instance(self):
-        """tracing=True creates an AirmanFastMCP instance."""
+    def test_tracing_true_returns_pgpacer_instance(self):
+        """tracing=True creates an PgPacerFastMCP instance."""
         server = create_mcp_server(tracing=True)
-        assert isinstance(server, AirmanFastMCP)
+        assert isinstance(server, PgPacerFastMCP)
 
     def test_tracing_false_returns_plain_fastmcp(self):
-        """tracing=False creates a plain FastMCP (not AirmanFastMCP)."""
+        """tracing=False creates a plain FastMCP (not PgPacerFastMCP)."""
         server = create_mcp_server(tracing=False)
         assert type(server) is FastMCP
 
     def test_tracing_with_purpose_passes_purpose(self):
-        """Purpose is stored on the AirmanFastMCP instance."""
+        """Purpose is stored on the PgPacerFastMCP instance."""
         server = create_mcp_server(tracing=True, purpose="my-app")
-        assert isinstance(server, AirmanFastMCP)
+        assert isinstance(server, PgPacerFastMCP)
         assert server._purpose == "my-app"  # type: ignore[reportPrivateUsage]
 
     def test_tracing_without_purpose_has_none(self):
         """Purpose defaults to None when not provided."""
         server = create_mcp_server(tracing=True)
-        assert isinstance(server, AirmanFastMCP)
+        assert isinstance(server, PgPacerFastMCP)
         assert server._purpose is None  # type: ignore[reportPrivateUsage]
 
     def test_tracing_logs_info(self):
         """Tracing enabled logs an info message."""
-        with patch("pg_airman_mcp.server.logger") as mock_logger:
+        with patch("pgpacer.server.logger") as mock_logger:
             create_mcp_server(tracing=True, purpose="my-app")
 
         log_messages = [str(call) for call in mock_logger.info.call_args_list]
         assert any(
-            "tracing" in msg.lower() and "AirmanFastMCP" in msg for msg in log_messages
+            "tracing" in msg.lower() and "PgPacerFastMCP" in msg for msg in log_messages
         ), f"Expected tracing log message, got: {log_messages}"
 
 

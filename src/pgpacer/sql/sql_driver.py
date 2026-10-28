@@ -18,7 +18,7 @@ from psycopg_pool import AsyncConnectionPool
 
 logger = logging.getLogger(__name__)
 
-# ContextVar for session token tracing. Set per-request by AirmanFastMCP.call_tool(),
+# ContextVar for session token tracing. Set per-request by PgPacerFastMCP.call_tool(),
 # read by _execute_with_connection() to issue SET application_name (session-level).
 tracing_application_name: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "tracing_application_name", default=None

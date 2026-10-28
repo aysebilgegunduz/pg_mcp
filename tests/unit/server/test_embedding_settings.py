@@ -8,12 +8,12 @@ import mcp.types as types
 import pytest
 from pydantic import ValidationError
 
-import pg_airman_mcp.server as server
-from pg_airman_mcp.semantics.embeddings import (
+import pgpacer.server as server
+from pgpacer.semantics.embeddings import (
     HashEmbeddingProvider,
     OpenAICompatibleEmbeddingProvider,
 )
-from pg_airman_mcp.server import (
+from pgpacer.server import (
     ServerSettings,
     get_embedding_provider,
     search_knowledge_map,
@@ -34,11 +34,11 @@ class TestEmbeddingSettings:
 
     def test_env_vars(self):
         env = {
-            "AIRMAN_MCP_EMBEDDING_PROVIDER": "OpenAI",
-            "AIRMAN_MCP_EMBEDDING_MODEL": "nomic-embed-text",
-            "AIRMAN_MCP_EMBEDDING_BASE_URL": "http://localhost:11434/v1",
-            "AIRMAN_MCP_EMBEDDING_API_KEY": "sk-secret",
-            "AIRMAN_MCP_EMBEDDING_DIMENSIONS": "768",
+            "PGPACER_EMBEDDING_PROVIDER": "OpenAI",
+            "PGPACER_EMBEDDING_MODEL": "nomic-embed-text",
+            "PGPACER_EMBEDDING_BASE_URL": "http://localhost:11434/v1",
+            "PGPACER_EMBEDDING_API_KEY": "sk-secret",
+            "PGPACER_EMBEDDING_DIMENSIONS": "768",
         }
         with patch.dict(os.environ, env):
             settings = ServerSettings()
@@ -69,7 +69,7 @@ class TestGetEmbeddingProvider:
             patch.object(server, "embedding_provider", None),
             patch.object(server, "_embedding_config_error", None),
         ):
-            with pytest.raises(ValueError, match="AIRMAN_MCP_EMBEDDING_PROVIDER"):
+            with pytest.raises(ValueError, match="PGPACER_EMBEDDING_PROVIDER"):
                 get_embedding_provider()
 
     def test_misconfigured(self):
@@ -110,10 +110,10 @@ class TestGetEmbeddingProvider:
 async def _run_main(**embedding_settings):
     """Run main() with mocked transport/DB, returning the configured provider."""
     with (
-        patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-        patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-        patch("pg_airman_mcp.server.db_connection") as mock_db,
-        patch("pg_airman_mcp.server.shutdown_event") as mock_event,
+        patch("pgpacer.server.ServerSettings") as mock_settings,
+        patch("pgpacer.server.create_mcp_server") as mock_create,
+        patch("pgpacer.server.db_connection") as mock_db,
+        patch("pgpacer.server.shutdown_event") as mock_event,
         patch("sys.argv", ["server.py", "postgresql://test"]),
         patch("signal.signal"),
     ):

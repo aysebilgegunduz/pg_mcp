@@ -1,4 +1,4 @@
-"""Database Tuning Advisor (DTA) tool for Pg Airman MCP."""
+"""Database Tuning Advisor (DTA) tool for pgpacer."""
 
 import logging
 import os
@@ -120,7 +120,7 @@ class TextPresentation:
 
             # Prepare the response to send back to the caller
             include_langfuse_trace = (
-                os.environ.get("AIRMAN_MCP_INCLUDE_LANGFUSE_TRACE", "true").lower()
+                os.environ.get("PGPACER_INCLUDE_LANGFUSE_TRACE", "true").lower()
                 == "true"
             )
             langfuse_trace = (

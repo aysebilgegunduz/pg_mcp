@@ -1,4 +1,4 @@
-name: Pg Airman MCP linters
+name: pgpacer linters
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
       - "**/README.md"
 
 jobs:
-  pg-airman-mcp-ci:
+  pgpacer-ci:
     runs-on: ubuntu-latest
 
     steps:

@@ -128,7 +128,7 @@ def create_auth_context(
         raise ValueError(
             "Server URL is required when --auth-enabled is set. "
             "For SSE/HTTP transports, this is auto-detected. "
-            "For stdio, set AIRMAN_MCP_SERVER_URL environment variable."
+            "For stdio, set PGPACER_SERVER_URL environment variable."
         )
 
     jwt = jwt_config or JwtConfig()
@@ -215,8 +215,8 @@ def _create_introspection_verifier(
     if not introspection_client_id or not introspection_client_secret:
         logger.warning(
             "Introspection client credentials not configured. "
-            "Set AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_ID and "
-            "AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_SECRET for "
+            "Set PGPACER_AUTH_INTROSPECTION_CLIENT_ID and "
+            "PGPACER_AUTH_INTROSPECTION_CLIENT_SECRET for "
             "authenticated introspection (RFC 7662 §2.1)."
         )
 
@@ -234,7 +234,7 @@ def _create_jwt_verifier(
     if not jwt_config.issuer:
         raise ValueError(
             "--jwt-issuer is required when --auth-type=jwt. "
-            "Set AIRMAN_MCP_JWT_ISSUER to the expected token issuer."
+            "Set PGPACER_JWT_ISSUER to the expected token issuer."
         )
 
     # Default JWKS URL to {auth_server_url}/.well-known/jwks.json

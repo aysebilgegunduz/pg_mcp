@@ -5,7 +5,7 @@ import logging
 import pytest
 import pytest_asyncio
 
-from pg_airman_mcp.sql import DbConnPool, SqlDriver
+from pgpacer.sql import DbConnPool, SqlDriver
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,8 @@ async def connection_with_purpose(test_postgres_connection_string):
     connection_string, version = test_postgres_connection_string
     logger.info("Using PostgreSQL version: %s", version)
 
-    # Format: airman:<purpose> (matches server.py format)
-    purpose = "airman:test-purpose"
+    # Format: pgpacer:<purpose> (matches server.py format)
+    purpose = "pgpacer:test-purpose"
     separator = "&" if "?" in connection_string else "?"
     url_with_purpose = f"{connection_string}{separator}application_name={purpose}"
 
@@ -75,7 +75,7 @@ class TestPurposeApplicationName:
 
         assert rows is not None
         assert len(rows) == 1
-        assert rows[0].cells["application_name"] != "airman:test-purpose"
+        assert rows[0].cells["application_name"] != "pgpacer:test-purpose"
 
     @pytest.mark.asyncio
     async def test_application_name_persists_across_queries(
@@ -103,8 +103,8 @@ class TestPurposeApplicationName:
     ):
         """Hyphenated purpose value works correctly in connection URL."""
         connection_string, _version = test_postgres_connection_string
-        # Format: airman:<purpose> (matches server.py format)
-        purpose = "airman:credit-scoring-v2"
+        # Format: pgpacer:<purpose> (matches server.py format)
+        purpose = "pgpacer:credit-scoring-v2"
         separator = "&" if "?" in connection_string else "?"
         url = f"{connection_string}{separator}application_name={purpose}"
 

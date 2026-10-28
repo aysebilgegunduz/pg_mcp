@@ -3,7 +3,7 @@
 # Disabled because Pydantic Field() calls are required in function signatures
 # for tool registration
 """
-Pg Airman MCP Server - PostgreSQL Database Management via Model Context
+pgpacer Server - PostgreSQL Database Management via Model Context
 Protocol.
 
 This module implements a Model Context Protocol (MCP) server that provides
@@ -29,7 +29,7 @@ Configuration System
 -------------------
 Settings are loaded via Pydantic BaseSettings with a three-tier priority system:
   1. Command-line arguments (highest priority)
-  2. Environment variables with AIRMAN_MCP_ prefix
+  2. Environment variables with PGPACER_ prefix
   3. Default values (lowest priority)
 
 Access Modes
@@ -50,7 +50,7 @@ Optional OAuth 2.0 authentication with token introspection:
   - Token verification via token_verifier.py (any RFC 7662 endpoint)
   - Supports RFC 8707 resource validation
   - All tools protected when auth is enabled
-  - Requires AIRMAN_MCP_SERVER_URL for stdio transport with auth
+  - Requires PGPACER_SERVER_URL for stdio transport with auth
 
 Global State
 -----------
@@ -63,19 +63,20 @@ Module-level globals used for server coordination:
 
 Entry Point
 ----------
-Run with: python -m pg_airman_mcp <database_url> [options]
+Run with: python -m pgpacer <database_url> [options]
 See main() function for complete CLI argument documentation.
 """
 
 import argparse
 import asyncio
 import logging
+import os
 import re
 import signal
 import sys
 import threading
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import Enum
 from typing import Any, Literal
 from urllib.parse import quote
@@ -84,9 +85,14 @@ import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AliasChoices, Field, SecretStr, field_validator, validate_call
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    EnvSettingsSource,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
-from pg_airman_mcp.index.dta_calc import DatabaseTuningAdvisor
+from pgpacer.index.dta_calc import DatabaseTuningAdvisor
 
 from .artifacts import ErrorResult, ExplainPlanArtifact
 from .auth_config import (
@@ -127,12 +133,16 @@ from .top_queries import TopQueriesCalc
 mcp: FastMCP
 
 # Constants
+ENV_PREFIX = "PGPACER_"
+# Prefix used before the project was renamed from pg-airman-mcp. Still honored
+# (with a deprecation warning) so un-migrated deployments keep their settings.
+LEGACY_ENV_PREFIX = "AIRMAN_MCP_"
 PG_STAT_STATEMENTS = "pg_stat_statements"
 _PURPOSE_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
 # PostgreSQL truncates application_name at NAMEDATALEN-1 (63 bytes).
-# Composed format is "airman:<purpose>/<sid8>" — fixed overhead is 16 bytes
-# ("airman:" + "/" + 8-char session prefix), leaving 47 bytes for purpose.
-_PURPOSE_MAX_LEN = 47
+# Composed format is "pgpacer:<purpose>/<sid8>" — fixed overhead is 17 bytes
+# ("pgpacer:" + "/" + 8-char session prefix), leaving 46 bytes for purpose.
+_PURPOSE_MAX_LEN = 46
 HYPOPG_EXTENSION = "hypopg"
 
 ResponseType = list[types.TextContent | types.ImageContent | types.EmbeddedResource]
@@ -149,56 +159,57 @@ class AccessMode(str, Enum):
 
 class ServerSettings(BaseSettings):
     """
-    Configuration settings for the Pg Airman MCP Server.
+    Configuration settings for the pgpacer Server.
 
     All settings can be configured via:
     1. Command-line arguments (takes precedence)
-    2. Environment variables with AIRMAN_MCP_ prefix
+    2. Environment variables with PGPACER_ prefix
     3. Default values (lowest priority)
 
     Environment Variables:
-        AIRMAN_MCP_DATABASE_URL: PostgreSQL connection string
-        DATABASE_URI: Fallback for database URL if AIRMAN_MCP_DATABASE_URL is not set
-        AIRMAN_MCP_ACCESS_MODE: SQL access mode (unrestricted or restricted)
-        AIRMAN_MCP_TRANSPORT: Transport type (stdio, sse, streamable-http)
-        AIRMAN_MCP_SSE_HOST: SSE server host (default: localhost)
-        AIRMAN_MCP_SSE_PORT: SSE server port (default: 8000)
-        AIRMAN_MCP_STREAMABLE_HTTP_HOST: Streamable HTTP host (default: localhost)
-        AIRMAN_MCP_STREAMABLE_HTTP_PORT: Streamable HTTP port (default: 8001)
-        AIRMAN_MCP_AUTH_ENABLED: Enable authentication (true/false)
-        AIRMAN_MCP_AUTH_TYPE: Auth type: introspection or jwt
-        AIRMAN_MCP_AUTH_SERVER_URL: Authorization server URL
-        AIRMAN_MCP_AUTH_INTROSPECTION_ENDPOINT: Token introspection endpoint
-        AIRMAN_MCP_AUTH_REQUIRED_SCOPES: Comma-separated OAuth scopes
-        AIRMAN_MCP_AUTH_VALIDATE_RESOURCE: Enable RFC 8707 validation (true/false)
-        AIRMAN_MCP_JWT_JWKS_URL: JWKS endpoint URL for JWT verification
-        AIRMAN_MCP_JWT_ISSUER: Expected JWT issuer claim
-        AIRMAN_MCP_JWT_AUDIENCE: Expected JWT audience claim
-        AIRMAN_MCP_JWT_ALGORITHMS: Comma-separated JWT signing algorithms
-        AIRMAN_MCP_JWT_CLOCK_SKEW: JWT clock skew tolerance in seconds
-        AIRMAN_MCP_JWT_JWKS_CACHE_TTL: JWKS cache TTL in seconds
-        AIRMAN_MCP_SERVER_URL: This server's URL (required for stdio with auth)
-        AIRMAN_MCP_PURPOSE: Static purpose label for governance tracing
-        AIRMAN_MCP_DNS_REBINDING_PROTECTION: DNS rebinding protection
-        AIRMAN_MCP_ALLOWED_HOSTS: Allowed Host header values (CSV)
-        AIRMAN_MCP_ALLOWED_ORIGINS: Allowed Origin header values (CSV)
-        AIRMAN_MCP_EMBEDDING_PROVIDER: Embedding provider (openai or hash)
-        AIRMAN_MCP_EMBEDDING_MODEL: Embedding model name (openai provider)
-        AIRMAN_MCP_EMBEDDING_BASE_URL: OpenAI-compatible API base URL
-        AIRMAN_MCP_EMBEDDING_API_KEY: API key for the embedding service
-        AIRMAN_MCP_EMBEDDING_DIMENSIONS: Requested embedding dimensions
-        AIRMAN_MCP_EMBEDDING_TIMEOUT: Embedding request timeout in seconds
-        AIRMAN_MCP_EMBEDDING_BATCH_SIZE: Texts per embedding request
+        PGPACER_DATABASE_URL: PostgreSQL connection string
+        DATABASE_URI: Fallback for database URL if PGPACER_DATABASE_URL is not set
+        AIRMAN_MCP_*: Deprecated pre-rename names, used when PGPACER_* is unset
+        PGPACER_ACCESS_MODE: SQL access mode (unrestricted or restricted)
+        PGPACER_TRANSPORT: Transport type (stdio, sse, streamable-http)
+        PGPACER_SSE_HOST: SSE server host (default: localhost)
+        PGPACER_SSE_PORT: SSE server port (default: 8000)
+        PGPACER_STREAMABLE_HTTP_HOST: Streamable HTTP host (default: localhost)
+        PGPACER_STREAMABLE_HTTP_PORT: Streamable HTTP port (default: 8001)
+        PGPACER_AUTH_ENABLED: Enable authentication (true/false)
+        PGPACER_AUTH_TYPE: Auth type: introspection or jwt
+        PGPACER_AUTH_SERVER_URL: Authorization server URL
+        PGPACER_AUTH_INTROSPECTION_ENDPOINT: Token introspection endpoint
+        PGPACER_AUTH_REQUIRED_SCOPES: Comma-separated OAuth scopes
+        PGPACER_AUTH_VALIDATE_RESOURCE: Enable RFC 8707 validation (true/false)
+        PGPACER_JWT_JWKS_URL: JWKS endpoint URL for JWT verification
+        PGPACER_JWT_ISSUER: Expected JWT issuer claim
+        PGPACER_JWT_AUDIENCE: Expected JWT audience claim
+        PGPACER_JWT_ALGORITHMS: Comma-separated JWT signing algorithms
+        PGPACER_JWT_CLOCK_SKEW: JWT clock skew tolerance in seconds
+        PGPACER_JWT_JWKS_CACHE_TTL: JWKS cache TTL in seconds
+        PGPACER_SERVER_URL: This server's URL (required for stdio with auth)
+        PGPACER_PURPOSE: Static purpose label for governance tracing
+        PGPACER_DNS_REBINDING_PROTECTION: DNS rebinding protection
+        PGPACER_ALLOWED_HOSTS: Allowed Host header values (CSV)
+        PGPACER_ALLOWED_ORIGINS: Allowed Origin header values (CSV)
+        PGPACER_EMBEDDING_PROVIDER: Embedding provider (openai or hash)
+        PGPACER_EMBEDDING_MODEL: Embedding model name (openai provider)
+        PGPACER_EMBEDDING_BASE_URL: OpenAI-compatible API base URL
+        PGPACER_EMBEDDING_API_KEY: API key for the embedding service
+        PGPACER_EMBEDDING_DIMENSIONS: Requested embedding dimensions
+        PGPACER_EMBEDDING_TIMEOUT: Embedding request timeout in seconds
+        PGPACER_EMBEDDING_BATCH_SIZE: Texts per embedding request
 
     Example Usage:
         # Via environment variables
-        export AIRMAN_MCP_DATABASE_URL="postgresql://user:pass@localhost/db"
-        export AIRMAN_MCP_ACCESS_MODE="restricted"
-        export AIRMAN_MCP_AUTH_ENABLED="true"
-        python -m pg_airman_mcp
+        export PGPACER_DATABASE_URL="postgresql://user:pass@localhost/db"
+        export PGPACER_ACCESS_MODE="restricted"
+        export PGPACER_AUTH_ENABLED="true"
+        python -m pgpacer
 
         # Via CLI (overrides environment)
-        python -m pg_airman_mcp "postgresql://..." --access-mode restricted
+        python -m pgpacer "postgresql://..." --access-mode restricted
 
         # Programmatically
         settings = ServerSettings()
@@ -206,7 +217,7 @@ class ServerSettings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="AIRMAN_MCP_",
+        env_prefix=ENV_PREFIX,
         case_sensitive=False,
         validate_assignment=True,
     )
@@ -217,6 +228,7 @@ class ServerSettings(BaseSettings):
         description="PostgreSQL connection URL",
         validation_alias=AliasChoices(
             "database_url",
+            "PGPACER_DATABASE_URL",
             "AIRMAN_MCP_DATABASE_URL",
             "DATABASE_URI",
         ),
@@ -309,7 +321,7 @@ class ServerSettings(BaseSettings):
     # Governance
     purpose: str | None = Field(
         default=None,
-        description="Static purpose label for this Airman instance"
+        description="Static purpose label for this pgpacer instance"
         " - lower case alpha numeric with hyphens",
     )
     tracing: bool = Field(
@@ -362,6 +374,29 @@ class ServerSettings(BaseSettings):
     embedding_batch_size: int = Field(
         default=32, description="Maximum texts per embedding request"
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Read legacy AIRMAN_MCP_* variables after PGPACER_* ones.
+
+        Silently ignoring them would start an un-migrated restricted or
+        authenticated deployment unrestricted and unauthenticated.
+        """
+        legacy_env = EnvSettingsSource(settings_cls, env_prefix=LEGACY_ENV_PREFIX)
+        return (
+            init_settings,
+            env_settings,
+            legacy_env,
+            dotenv_settings,
+            file_secret_settings,
+        )
 
     @field_validator("access_mode")
     @classmethod
@@ -430,7 +465,7 @@ class ServerSettings(BaseSettings):
         """
         Determine the server URL based on transport and configuration.
 
-        For stdio with auth, requires AIRMAN_MCP_SERVER_URL environment variable.
+        For stdio with auth, requires PGPACER_SERVER_URL environment variable.
         For SSE/HTTP transports, auto-generates from host:port.
         """
         if self.server_url:
@@ -498,7 +533,7 @@ is_stdio_transport = False
 shutdown_event = threading.Event()
 
 
-class AirmanFastMCP(FastMCP):
+class PgPacerFastMCP(FastMCP):
     """FastMCP subclass that injects session token tracing per request.
 
     Overrides call_tool() to extract a session token from the MCP _meta
@@ -536,16 +571,16 @@ class AirmanFastMCP(FastMCP):
         except Exception:
             pass
 
-        # Compose application_name: airman:<purpose>/<session-short>
+        # Compose application_name: pgpacer:<purpose>/<session-short>
         # Session truncated to first 8 chars (like git short hashes)
         session_short = str(token)[:8]
         logger.info(
             "Tracing: tool=%s session=%s source=%s", name, session_short, source
         )
         if self._purpose:
-            app_name = f"airman:{self._purpose}/{session_short}"
+            app_name = f"pgpacer:{self._purpose}/{session_short}"
         else:
-            app_name = f"airman:_/{session_short}"
+            app_name = f"pgpacer:_/{session_short}"
 
         # Store in ContextVar for SQL layer to read
         reset_token = tracing_application_name.set(app_name)
@@ -573,7 +608,7 @@ def create_mcp_server(
             If None, server runs without authentication.
         transport_security: DNS rebinding protection settings.
             If None, FastMCP applies its defaults (protection for localhost).
-        tracing: Enable session token tracing via AirmanFastMCP subclass.
+        tracing: Enable session token tracing via PgPacerFastMCP subclass.
         purpose: Static purpose label, composed with token when tracing.
 
     Returns:
@@ -584,28 +619,28 @@ def create_mcp_server(
     global _auth_context
     _auth_context = auth_context
 
-    # Choose server class: AirmanFastMCP when tracing, plain FastMCP otherwise
-    server_cls: type[FastMCP] = AirmanFastMCP if tracing else FastMCP
+    # Choose server class: PgPacerFastMCP when tracing, plain FastMCP otherwise
+    server_cls: type[FastMCP] = PgPacerFastMCP if tracing else FastMCP
     extra_kwargs: dict[str, Any] = {}
     if tracing:
         extra_kwargs["purpose"] = purpose
         logger.info(
             f"Session token tracing ENABLED "
-            f"(purpose={purpose or 'none'}, using AirmanFastMCP)"
+            f"(purpose={purpose or 'none'}, using PgPacerFastMCP)"
         )
 
     if auth_context is None:
         # Create unauthenticated server
         logger.info("Authentication DISABLED - all tools are unprotected")
         server = server_cls(
-            "pg-airman-mcp",
+            "pgpacer",
             transport_security=transport_security,
             **extra_kwargs,
         )
     else:
         # Create authenticated FastMCP instance
         server = server_cls(
-            "pg-airman-mcp",
+            "pgpacer",
             token_verifier=auth_context.token_verifier,
             auth=auth_context.auth_settings,
             transport_security=transport_security,
@@ -733,6 +768,26 @@ def create_mcp_server(
     return server
 
 
+def warn_legacy_env_vars(environ: Mapping[str, str] = os.environ) -> list[str]:
+    """Log a deprecation warning for each legacy AIRMAN_MCP_* variable set.
+
+    Only names are logged, never values: several of these hold secrets.
+    """
+    names = {name.upper() for name in environ}
+    legacy = sorted(
+        name for name in environ if name.upper().startswith(LEGACY_ENV_PREFIX)
+    )
+    for name in legacy:
+        replacement = ENV_PREFIX + name[len(LEGACY_ENV_PREFIX) :].upper()
+        note = (
+            f"; {replacement} is also set and takes precedence"
+            if replacement in names
+            else ""
+        )
+        logger.warning(f"{name} is deprecated, rename it to {replacement}{note}")
+    return legacy
+
+
 async def get_sql_driver() -> SqlDriver | SafeSqlDriver:
     """Get the appropriate SQL driver based on the current access mode."""
     base_driver = SqlDriver(conn=db_connection)
@@ -753,8 +808,8 @@ def get_embedding_provider() -> EmbeddingProvider:
         )
     if embedding_provider is None:
         raise ValueError(
-            "No embedding provider is configured. Set AIRMAN_MCP_EMBEDDING_PROVIDER "
-            "to 'openai' (with AIRMAN_MCP_EMBEDDING_MODEL) or 'hash' to use "
+            "No embedding provider is configured. Set PGPACER_EMBEDDING_PROVIDER "
+            "to 'openai' (with PGPACER_EMBEDDING_MODEL) or 'hash' to use "
             "semantic search tools."
         )
     return embedding_provider
@@ -1747,15 +1802,17 @@ async def _run_transport(settings: ServerSettings):
 async def main():
     # Load settings from environment variables first
     settings = ServerSettings()
+    warn_legacy_env_vars()
 
     # Parse command line arguments (they override environment variables)
     parser = argparse.ArgumentParser(
-        description="Pg Airman MCP Server",
+        description="pgpacer Server",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Environment Variables:
-  All CLI arguments can be set via environment variables with AIRMAN_MCP_ prefix.
-  For example: AIRMAN_MCP_DATABASE_URL, AIRMAN_MCP_ACCESS_MODE, etc.
+  All CLI arguments can be set via environment variables with PGPACER_ prefix.
+  The former AIRMAN_MCP_ prefix is still accepted but deprecated.
+  For example: PGPACER_DATABASE_URL, PGPACER_ACCESS_MODE, etc.
   CLI arguments take precedence over environment variables.
         """,
     )
@@ -1842,7 +1899,7 @@ Environment Variables:
         default=settings.embedding_provider,
         help="Embedding provider for knowledge map/golden query tools: 'openai' (any "
         "OpenAI-compatible /embeddings API) or 'hash' (offline, lexical only). "
-        "The API key is read from AIRMAN_MCP_EMBEDDING_API_KEY only.",
+        "The API key is read from PGPACER_EMBEDDING_API_KEY only.",
     )
     parser.add_argument(
         "--embedding-model",
@@ -1896,7 +1953,7 @@ Environment Variables:
     if settings.auth_enabled and settings.transport == "stdio" and not server_url:
         raise ValueError(
             "When using --auth-enabled with stdio transport, you must set "
-            "AIRMAN_MCP_SERVER_URL environment variable (e.g., http://localhost:8000)"
+            "PGPACER_SERVER_URL environment variable (e.g., http://localhost:8000)"
         )
 
     # Create auth context if auth is enabled
@@ -1971,7 +2028,7 @@ Environment Variables:
 
     tool_count = len(await mcp.list_tools())
     logger.info(
-        f"Starting Pg Airman MCP Server in {current_access_mode.upper()} mode "
+        f"Starting pgpacer Server in {current_access_mode.upper()} mode "
         f"with {tool_count} tools"
     )
     # Get database URL
@@ -1980,15 +2037,15 @@ Environment Variables:
     if not database_url:
         raise ValueError(
             "Error: No database URL provided. Please specify via "
-            "AIRMAN_MCP_DATABASE_URL environment variable or command-line argument."
+            "PGPACER_DATABASE_URL environment variable or command-line argument."
         )
 
     # Append application_name to connection URL when purpose is set
-    # Format: airman:<purpose> (overridden at session level by autocommit SET if
+    # Format: pgpacer:<purpose> (overridden at session level by autocommit SET if
     # tracing enabled — see SqlDriver/SafeSqlDriver acquisition path)
     if settings.purpose:
         separator = "&" if "?" in database_url else "?"
-        app_name_value = f"airman:{settings.purpose}"
+        app_name_value = f"pgpacer:{settings.purpose}"
         database_url = (
             f"{database_url}{separator}application_name={quote(app_name_value)}"
         )

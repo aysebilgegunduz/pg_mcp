@@ -842,57 +842,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pg-airman-mcp"
-version = "1.1.1"
-source = { editable = "." }
-dependencies = [
-    { name = "attrs" },
-    { name = "httpx" },
-    { name = "humanize" },
-    { name = "instructor" },
-    { name = "mcp" },
-    { name = "pglast" },
-    { name = "psycopg", extra = ["c"] },
-    { name = "psycopg-pool" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "pytest-cov" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "docker" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "respx" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "attrs", specifier = ">=25.3.0" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "humanize", specifier = ">=4.8.0" },
-    { name = "instructor", specifier = ">=1.7.9" },
-    { name = "mcp", specifier = ">=1.9.2" },
-    { name = "pglast", specifier = ">=7.21,<8" },
-    { name = "psycopg", extras = ["c"], specifier = ">=3.2.8" },
-    { name = "psycopg-pool", specifier = ">=3.2.6" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.12.1" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "docker", specifier = ">=7.1.0" },
-    { name = "pyright", specifier = "==1.1.398" },
-    { name = "pytest", specifier = ">=8.3.5" },
-    { name = "pytest-asyncio", specifier = ">=0.26.0" },
-    { name = "respx", specifier = ">=0.22.0" },
-    { name = "ruff", specifier = "==0.11.2" },
-]
-
-[[package]]
 name = "pglast"
 version = "7.21"
 source = { registry = "https://pypi.org/simple" }
@@ -952,6 +901,57 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8f/0f/7f46e5840673e6950f20277aa1d466cfe8782e49bc905ae7fe87b2201f01/pglast-7.21-cp315-cp315t-win32.whl", hash = "sha256:896a90608896733bff65193864042b702db78fc35b2679c2e6c2b383956ab34e", size = 1401229, upload-time = "2026-10-18T11:49:04.181Z" },
     { url = "https://files.pythonhosted.org/packages/62/0b/1bf65b9006a7789d03474069a6369ead8a6cb29c852f992b299fe39f2c57/pglast-7.21-cp315-cp315t-win_amd64.whl", hash = "sha256:9db72f15b0bc0ac375d6367f7c90d97ec687c7c442a57859f8d031ba91c02e4a", size = 1492616, upload-time = "2026-10-18T11:49:05.329Z" },
     { url = "https://files.pythonhosted.org/packages/52/85/ea49e449a9e2fdc05899e5ca29126ccc4160a8ec2f65fd7d257d3156b2fb/pglast-7.21-cp315-cp315t-win_arm64.whl", hash = "sha256:8ed9224e2aad8250b97f6302aa2136aad308603d4a4cb89b2b5115765448e9be", size = 1339608, upload-time = "2026-10-18T11:49:06.372Z" },
+]
+
+[[package]]
+name = "pgpacer"
+version = "1.1.1"
+source = { editable = "." }
+dependencies = [
+    { name = "attrs" },
+    { name = "httpx" },
+    { name = "humanize" },
+    { name = "instructor" },
+    { name = "mcp" },
+    { name = "pglast" },
+    { name = "psycopg", extra = ["c"] },
+    { name = "psycopg-pool" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "pytest-cov" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "docker" },
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "respx" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "attrs", specifier = ">=25.3.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "humanize", specifier = ">=4.8.0" },
+    { name = "instructor", specifier = ">=1.7.9" },
+    { name = "mcp", specifier = ">=1.9.2" },
+    { name = "pglast", specifier = ">=7.21,<8" },
+    { name = "psycopg", extras = ["c"], specifier = ">=3.2.8" },
+    { name = "psycopg-pool", specifier = ">=3.2.6" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.12.1" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "docker", specifier = ">=7.1.0" },
+    { name = "pyright", specifier = "==1.1.398" },
+    { name = "pytest", specifier = ">=8.3.5" },
+    { name = "pytest-asyncio", specifier = ">=0.26.0" },
+    { name = "respx", specifier = ">=0.22.0" },
+    { name = "ruff", specifier = "==0.11.2" },
 ]
 
 [[package]]

@@ -12,16 +12,16 @@ from functools import cache
 from importlib import resources
 from typing import Any
 
-from pg_airman_mcp.sql import SafeSqlDriver, SqlDriver
+from pgpacer.sql import SafeSqlDriver, SqlDriver
 
 from .embeddings import EmbeddingProvider
 
 logger = logging.getLogger(__name__)
 
-SEMANTIC_SCHEMA = "airman_semantic"
+SEMANTIC_SCHEMA = "pgpacer"
 
-# Arbitrary constant ("airman" in ASCII) serialising concurrent installs.
-_SCHEMA_LOCK_KEY = 0x6169726D616E
+# Arbitrary constant ("pgpacer" in ASCII) serialising concurrent installs.
+_SCHEMA_LOCK_KEY = 0x70677061636572
 
 _NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]{0,62}$")
 MAX_SEARCH_LIMIT = 1000
@@ -204,7 +204,7 @@ async def get_knowledge_map(
     rows = await sql_driver.execute_query(
         """
         SELECT name, model_name, dimensions, schemas, refreshed_at
-        FROM airman_semantic.knowledge_maps
+        FROM pgpacer.knowledge_maps
         WHERE name = %s
         """,
         [map_name],

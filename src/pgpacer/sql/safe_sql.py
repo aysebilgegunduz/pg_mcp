@@ -1027,7 +1027,7 @@ class SafeSqlDriver(SqlDriver):
             try:
                 async with asyncio.timeout(self.timeout):
                     return await self.sql_driver.execute_query(
-                        f"/* enterprisedb */ {query}",
+                        f"/* pgpacer */ {query}",
                         params=params,
                         force_readonly=True,
                     )
@@ -1046,7 +1046,7 @@ class SafeSqlDriver(SqlDriver):
                 raise
         else:
             return await self.sql_driver.execute_query(
-                f"/* enterprisedb */ {query}",
+                f"/* pgpacer */ {query}",
                 params=params,
                 force_readonly=True,
             )

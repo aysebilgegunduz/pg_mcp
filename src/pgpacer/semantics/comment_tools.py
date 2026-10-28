@@ -2,7 +2,7 @@
 
 import logging
 
-from pg_airman_mcp.sql import SafeSqlDriver, SqlDriver, execute_comment_on
+from pgpacer.sql import SafeSqlDriver, SqlDriver, execute_comment_on
 
 logger = logging.getLogger(__name__)
 

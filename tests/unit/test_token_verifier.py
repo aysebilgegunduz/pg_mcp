@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pg_airman_mcp.token_verifier import IntrospectionTokenVerifier
+from pgpacer.token_verifier import IntrospectionTokenVerifier
 
 
 class TestSSRFPrevention:

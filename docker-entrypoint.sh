@@ -58,21 +58,32 @@ for arg in "$@"; do
     fi
 done
 
-# --- Backward compatibility: bridge DATABASE_URI -> AIRMAN_MCP_DATABASE_URL ---
-if [[ -n "$DATABASE_URI" ]]; then
-    if [[ -z "$AIRMAN_MCP_DATABASE_URL" ]]; then
-        echo "WARNING: DATABASE_URI is deprecated. Use AIRMAN_MCP_DATABASE_URL instead." >&2
-        export AIRMAN_MCP_DATABASE_URL="$DATABASE_URI"
+# --- Backward compatibility: bridge AIRMAN_MCP_DATABASE_URL -> PGPACER_DATABASE_URL ---
+# (the variable's name before the project was renamed from pg-airman-mcp)
+if [[ -n "$AIRMAN_MCP_DATABASE_URL" ]]; then
+    if [[ -z "$PGPACER_DATABASE_URL" ]]; then
+        echo "WARNING: AIRMAN_MCP_DATABASE_URL is deprecated. Use PGPACER_DATABASE_URL instead." >&2
+        export PGPACER_DATABASE_URL="$AIRMAN_MCP_DATABASE_URL"
     else
-        echo "WARNING: Both DATABASE_URI and AIRMAN_MCP_DATABASE_URL are set. Using AIRMAN_MCP_DATABASE_URL." >&2
+        echo "WARNING: Both AIRMAN_MCP_DATABASE_URL and PGPACER_DATABASE_URL are set. Using PGPACER_DATABASE_URL." >&2
     fi
 fi
 
-# Check and replace localhost in AIRMAN_MCP_DATABASE_URL if it exists
-if [[ -n "$AIRMAN_MCP_DATABASE_URL" && "$AIRMAN_MCP_DATABASE_URL" == *"postgres"*"://"*"localhost"* ]]; then
-    echo "Found localhost in AIRMAN_MCP_DATABASE_URL: $AIRMAN_MCP_DATABASE_URL" >&2
-    if new_uri=$(replace_localhost "$AIRMAN_MCP_DATABASE_URL"); then
-        export AIRMAN_MCP_DATABASE_URL="$new_uri"
+# --- Backward compatibility: bridge DATABASE_URI -> PGPACER_DATABASE_URL ---
+if [[ -n "$DATABASE_URI" ]]; then
+    if [[ -z "$PGPACER_DATABASE_URL" ]]; then
+        echo "WARNING: DATABASE_URI is deprecated. Use PGPACER_DATABASE_URL instead." >&2
+        export PGPACER_DATABASE_URL="$DATABASE_URI"
+    else
+        echo "WARNING: Both DATABASE_URI and PGPACER_DATABASE_URL are set. Using PGPACER_DATABASE_URL." >&2
+    fi
+fi
+
+# Check and replace localhost in PGPACER_DATABASE_URL if it exists
+if [[ -n "$PGPACER_DATABASE_URL" && "$PGPACER_DATABASE_URL" == *"postgres"*"://"*"localhost"* ]]; then
+    echo "Found localhost in PGPACER_DATABASE_URL: $PGPACER_DATABASE_URL" >&2
+    if new_uri=$(replace_localhost "$PGPACER_DATABASE_URL"); then
+        export PGPACER_DATABASE_URL="$new_uri"
     fi
 fi
 

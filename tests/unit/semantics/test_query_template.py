@@ -6,7 +6,7 @@ parameter values and the database, so attack shapes are covered explicitly.
 
 import pytest
 
-from pg_airman_mcp.semantics.query_template import (
+from pgpacer.semantics.query_template import (
     MAX_ARRAY_ITEMS,
     MAX_PARAMETERS,
     MAX_QUERY_TEXT_CHARS,

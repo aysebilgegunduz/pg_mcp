@@ -10,7 +10,7 @@ Provides methods for generating different types of EXPLAIN plans.
 
 ## Usage
 
-The explain tool is integrated into the Pg Airman MCP server and can be used through the MCP API via the function:
+The explain tool is integrated into the pgpacer server and can be used through the MCP API via the function:
 
 - `explain_query`
 

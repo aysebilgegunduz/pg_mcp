@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock
 import pytest
 from fake_driver import FakeDriver, rows
 
-from pg_airman_mcp.semantics.discovery_tools import discover_schema_for_question
-from pg_airman_mcp.semantics.embeddings import HashEmbeddingProvider
+from pgpacer.semantics.discovery_tools import discover_schema_for_question
+from pgpacer.semantics.embeddings import HashEmbeddingProvider
 
 MAP_ROW = {
     "name": "my_map",
-    "model_name": "airman-hash-v1",
+    "model_name": "pgpacer-hash-v1",
     "dimensions": 64,
     "schemas": ["public"],
     "refreshed_at": None,
@@ -37,9 +37,9 @@ def routing_driver(map_matches, golden_query_matches) -> FakeDriver:
     return FakeDriver(
         [
             ("to_regclass", rows({"installed": True})),
-            ("FROM airman_semantic.knowledge_maps", rows(MAP_ROW)),
-            ("airman_semantic.knowledge_map_entries e", rows(*map_matches)),
-            ("airman_semantic.golden_queries a", rows(*golden_query_matches)),
+            ("FROM pgpacer.knowledge_maps", rows(MAP_ROW)),
+            ("pgpacer.knowledge_map_entries e", rows(*map_matches)),
+            ("pgpacer.golden_queries a", rows(*golden_query_matches)),
         ]
     )
 

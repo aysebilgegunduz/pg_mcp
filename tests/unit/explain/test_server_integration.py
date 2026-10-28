@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from pg_airman_mcp.server import explain_query
+from pgpacer.server import explain_query
 
 
 @pytest_asyncio.fixture
@@ -38,13 +38,11 @@ async def test_explain_query_integration():
     mock_text_result.text = result_text
 
     # Patch the format_text_response function
-    with patch(
-        "pg_airman_mcp.server.format_text_response", return_value=[mock_text_result]
-    ):
+    with patch("pgpacer.server.format_text_response", return_value=[mock_text_result]):
         # Patch the get_sql_driver
-        with patch("pg_airman_mcp.server.get_sql_driver"):
+        with patch("pgpacer.server.get_sql_driver"):
             # Patch the ExplainPlanTool
-            with patch("pg_airman_mcp.server.ExplainPlanTool"):
+            with patch("pgpacer.server.ExplainPlanTool"):
                 result = await explain_query(
                     "SELECT * FROM users",
                 )
@@ -66,13 +64,11 @@ async def test_explain_query_with_analyze_integration():
     mock_text_result.text = result_text
 
     # Patch the format_text_response function
-    with patch(
-        "pg_airman_mcp.server.format_text_response", return_value=[mock_text_result]
-    ):
+    with patch("pgpacer.server.format_text_response", return_value=[mock_text_result]):
         # Patch the get_sql_driver
-        with patch("pg_airman_mcp.server.get_sql_driver"):
+        with patch("pgpacer.server.get_sql_driver"):
             # Patch the ExplainPlanTool
-            with patch("pg_airman_mcp.server.ExplainPlanTool"):
+            with patch("pgpacer.server.ExplainPlanTool"):
                 result = await explain_query(
                     "SELECT * FROM users",
                     analyze=True,
@@ -97,20 +93,16 @@ async def test_explain_query_with_hypothetical_indexes_integration():
     test_indexes = [{"table": "users", "columns": ["email"]}]
 
     # Patch the format_text_response function
-    with patch(
-        "pg_airman_mcp.server.format_text_response", return_value=[mock_text_result]
-    ):
+    with patch("pgpacer.server.format_text_response", return_value=[mock_text_result]):
         # Create mock SafeSqlDriver that returns extension exists
         mock_safe_driver = MagicMock()
         mock_execute_query = AsyncMock(return_value=[MockCell({"exists": 1})])
         mock_safe_driver.execute_query = mock_execute_query
 
         # Patch the get_sql_driver
-        with patch(
-            "pg_airman_mcp.server.get_sql_driver", return_value=mock_safe_driver
-        ):
+        with patch("pgpacer.server.get_sql_driver", return_value=mock_safe_driver):
             # Patch the ExplainPlanTool
-            with patch("pg_airman_mcp.server.ExplainPlanTool"):
+            with patch("pgpacer.server.ExplainPlanTool"):
                 result = await explain_query(
                     test_sql, hypothetical_indexes=test_indexes
                 )
@@ -139,15 +131,11 @@ async def test_explain_query_missing_hypopg_integration():
     mock_safe_driver.execute_query = mock_execute_query
 
     # Patch the format_text_response function
-    with patch(
-        "pg_airman_mcp.server.format_text_response", return_value=[mock_text_result]
-    ):
+    with patch("pgpacer.server.format_text_response", return_value=[mock_text_result]):
         # Patch the get_sql_driver
-        with patch(
-            "pg_airman_mcp.server.get_sql_driver", return_value=mock_safe_driver
-        ):
+        with patch("pgpacer.server.get_sql_driver", return_value=mock_safe_driver):
             # Patch the ExplainPlanTool
-            with patch("pg_airman_mcp.server.ExplainPlanTool"):
+            with patch("pgpacer.server.ExplainPlanTool"):
                 result = await explain_query(
                     test_sql, hypothetical_indexes=test_indexes
                 )
@@ -167,12 +155,10 @@ async def test_explain_query_error_handling_integration():
     mock_text_result.text = f"Error: {error_message}"
 
     # Patch the format_error_response function
-    with patch(
-        "pg_airman_mcp.server.format_error_response", return_value=[mock_text_result]
-    ):
+    with patch("pgpacer.server.format_error_response", return_value=[mock_text_result]):
         # Patch the get_sql_driver to throw an exception
         with patch(
-            "pg_airman_mcp.server.get_sql_driver",
+            "pgpacer.server.get_sql_driver",
             side_effect=Exception(error_message),
         ):
             result = await explain_query("INVALID SQL")

@@ -1,6 +1,6 @@
-# Pg Airman MCP Tests
+# pgpacer Tests
 
-This directory contains tests for the Pg Airman MCP package.
+This directory contains tests for the pgpacer package.
 
 ## Running Tests
 

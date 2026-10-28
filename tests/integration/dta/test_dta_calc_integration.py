@@ -6,9 +6,9 @@ from functools import wraps
 import pytest
 import pytest_asyncio
 
-from pg_airman_mcp.index.dta_calc import DatabaseTuningAdvisor
-from pg_airman_mcp.index.index_opt_base import IndexTuningResult
-from pg_airman_mcp.sql import DbConnPool, SqlDriver
+from pgpacer.index.dta_calc import DatabaseTuningAdvisor
+from pgpacer.index.index_opt_base import IndexTuningResult
+from pgpacer.sql import DbConnPool, SqlDriver
 
 logger = logging.getLogger(__name__)
 

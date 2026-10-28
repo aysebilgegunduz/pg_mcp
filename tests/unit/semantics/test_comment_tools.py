@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from pg_airman_mcp.semantics.comment_tools import remove_object_comment
+from pgpacer.semantics.comment_tools import remove_object_comment
 
 
 class MockRow:
@@ -26,7 +26,7 @@ def mock_sql_driver():
 async def test_remove_object_comment_table(mock_sql_driver):
     """Test removing comment from a table."""
     with patch(
-        "pg_airman_mcp.semantics.comment_tools.execute_comment_on",
+        "pgpacer.semantics.comment_tools.execute_comment_on",
         new_callable=AsyncMock,
     ) as mock_execute:
         result = await remove_object_comment(
@@ -45,7 +45,7 @@ async def test_remove_object_comment_table(mock_sql_driver):
 async def test_remove_object_comment_view(mock_sql_driver):
     """Test removing comment from a view."""
     with patch(
-        "pg_airman_mcp.semantics.comment_tools.execute_comment_on",
+        "pgpacer.semantics.comment_tools.execute_comment_on",
         new_callable=AsyncMock,
     ) as mock_execute:
         result = await remove_object_comment(
@@ -63,7 +63,7 @@ async def test_remove_object_comment_view(mock_sql_driver):
 async def test_remove_object_comment_column(mock_sql_driver):
     """Test removing comment from a column."""
     with patch(
-        "pg_airman_mcp.semantics.comment_tools.execute_comment_on",
+        "pgpacer.semantics.comment_tools.execute_comment_on",
         new_callable=AsyncMock,
     ) as mock_execute:
         result = await remove_object_comment(

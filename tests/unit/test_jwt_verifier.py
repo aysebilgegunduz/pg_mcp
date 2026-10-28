@@ -12,7 +12,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.algorithms import RSAAlgorithm
 
-from pg_airman_mcp.jwt_verifier import JwtTokenVerifier
+from pgpacer.jwt_verifier import JwtTokenVerifier
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -57,7 +57,7 @@ in
 
   enterShell = ''
     hello
-    echo "PG Airman MCP Agent Development Environment"
+    echo "pgpacer Agent Development Environment"
   '';
 
   # https://devenv.sh/tasks/

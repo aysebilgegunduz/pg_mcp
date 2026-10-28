@@ -29,8 +29,8 @@ import respx
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from jwt.algorithms import ECAlgorithm, RSAAlgorithm
 
-from pg_airman_mcp.auth_config import AuthContext, JwtConfig, create_auth_context
-from pg_airman_mcp.jwt_verifier import JwtTokenVerifier
+from pgpacer.auth_config import AuthContext, JwtConfig, create_auth_context
+from pgpacer.jwt_verifier import JwtTokenVerifier
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -551,7 +551,7 @@ class TestCreateAuthContextIntegration:
     def test_introspection_auth_context_creates_different_verifier(self) -> None:
         """create_auth_context with auth_type=introspection creates
         IntrospectionTokenVerifier."""
-        from pg_airman_mcp.token_verifier import IntrospectionTokenVerifier
+        from pgpacer.token_verifier import IntrospectionTokenVerifier
 
         ctx = create_auth_context(
             auth_server_url=ISSUER,
@@ -564,7 +564,7 @@ class TestCreateAuthContextIntegration:
     def test_switching_auth_type_produces_correct_verifier(self) -> None:
         """Switching auth_type between jwt and introspection creates
         the correct verifier type each time."""
-        from pg_airman_mcp.token_verifier import IntrospectionTokenVerifier
+        from pgpacer.token_verifier import IntrospectionTokenVerifier
 
         jwt_config = JwtConfig(jwks_url=JWKS_URL, issuer=ISSUER, audience=AUDIENCE)
 

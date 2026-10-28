@@ -1,4 +1,4 @@
-# PG Airman MCP
+# pgpacer
 
 **A Postgres MCP server with index tuning, explain plans, health checks, and safe sql execution.**
 
@@ -6,9 +6,9 @@
 
 ## Overview
 
-**Pg Airman MCP** is an open source Model Context Protocol (MCP) server built to support you and your AI agents throughout the **entire development process**—from initial coding, through testing and deployment, and to production tuning and maintenance.
+**pgpacer** is an open source Model Context Protocol (MCP) server built to support you and your AI agents throughout the **entire development process**—from initial coding, through testing and deployment, and to production tuning and maintenance.
 
-Pg Airman MCP does much more than wrap a database connection.
+pgpacer does much more than wrap a database connection.
 
 Features include:
 
@@ -20,11 +20,19 @@ Features include:
 - **🛡️ Safe SQL Execution** - configurable access control, including support for read-only mode and safe SQL parsing, making it usable for both development and production.
 - **🔐 OAuth 2.0 Authentication** - optional token-based authentication supporting both RFC 7662 token introspection and local JWT validation (RS256, ES256), protecting all MCP tools with bearer tokens.
 
-Pg Airman MCP supports the following MCP transports for flexibility in different environments:
+pgpacer supports the following MCP transports for flexibility in different environments:
 
 - [Standard Input/Output (stdio)](https://modelcontextprotocol.io/docs/concepts/transports#standard-input%2Foutput-stdio)
 - [Server-Sent Events (SSE)](https://modelcontextprotocol.io/docs/concepts/transports#server-sent-events-sse)
 - [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http)
+
+### Why "pgpacer"?
+
+In a marathon, a pacer runs at the front of a group and sets the pace so everyone behind them reaches their goal.
+pgpacer does the same for AI agents working with PostgreSQL. It leads them through an unfamiliar database with knowledge maps of your tables and columns, vetted golden queries, and safe SQL execution.
+And it keeps the database itself at pace with index tuning, query plans, and health checks.
+
+The project was previously called PG Airman MCP; see [Migrating from pg-airman-mcp](#migrating-from-pg-airman-mcp).
 
 ## Quick Start
 
@@ -47,34 +55,38 @@ However, it often makes sense to use whichever method you are most familiar with
 
 ### Installation
 
-Choose one of the following methods to install Pg Airman MCP:
+Choose one of the following methods to install pgpacer:
 
 #### Option 1: Using Docker
 
-Pull the Pg Airman MCP server Docker image.
-This image contains all necessary dependencies, providing a reliable way to run Pg Airman MCP in a variety of environments.
+Build the pgpacer server Docker image from a clone of this repository.
+This image contains all necessary dependencies, providing a reliable way to run pgpacer in a variety of environments.
 
 ```bash
-docker pull enterprisedb/pg-airman-mcp
+git clone https://github.com/aysebilgegunduz/pgpacer.git
+cd pgpacer
+docker build -t pgpacer .
 ```
 
 #### Option 2: Using Python
 
-If you have `pipx` installed you can install Pg Airman MCP with:
+If you have `pipx` installed you can install pgpacer with:
 
 ```bash
-pipx install pg-airman-mcp
+pipx install git+https://github.com/aysebilgegunduz/pgpacer.git
 ```
 
-Otherwise, install Pg Airman MCP with `uv`:
+Otherwise, install pgpacer with `uv`:
 
 ```bash
-uv pip install pg-airman-mcp
+uv pip install git+https://github.com/aysebilgegunduz/pgpacer.git
 ```
+
+Either way, the command is `pgpacer`. The package is not published on PyPI yet, so install it from this repository for now.
 
 If you need to install `uv`, see the [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
 
-> **IMPORTANT:** Pg Airman MCP requires **Python 3.12+** and the [`psycopg`](https://www.psycopg.org/) package for database connectivity.  
+> **IMPORTANT:** pgpacer requires **Python 3.12+** and the [`psycopg`](https://www.psycopg.org/) package for database connectivity.  
 > If you install with Docker, all dependencies are included — no extra setup is needed.
 >
 > If you install with Python (`pipx` or `uv`), you may need:
@@ -89,12 +101,12 @@ If you need to install `uv`, see the [uv installation instructions](https://docs
 
 ### Configure Your AI Assistant
 
-We provide full instructions for configuring Pg Airman MCP with Claude Desktop.
+We provide full instructions for configuring pgpacer with Claude Desktop.
 Many MCP clients have similar configuration files, you can adapt these steps to work with the client of your choice.
 
 #### Claude Desktop Configuration
 
-You will need to edit the Claude Desktop configuration file to add Pg Airman MCP.
+You will need to edit the Claude Desktop configuration file to add pgpacer.
 The location of this file depends on your operating system:
 
 - MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -116,19 +128,19 @@ You will now edit the `mcpServers` section of the configuration file.
         "-i",
         "--rm",
         "-e",
-        "AIRMAN_MCP_DATABASE_URL",
-        "enterprisedb/pg-airman-mcp",
+        "PGPACER_DATABASE_URL",
+        "pgpacer",
         "--access-mode=unrestricted"
       ],
       "env": {
-        "AIRMAN_MCP_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname"
+        "PGPACER_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname"
       }
     }
   }
 }
 ```
 
-The Pg Airman MCP Docker image will automatically remap the hostname `localhost` to work from inside of the container.
+The pgpacer Docker image will automatically remap the hostname `localhost` to work from inside of the container.
 
 - MacOS/Windows: Uses `host.docker.internal` automatically
 - Linux: Uses `172.17.0.1` or the appropriate host address automatically
@@ -139,12 +151,12 @@ The Pg Airman MCP Docker image will automatically remap the hostname `localhost`
 {
   "mcpServers": {
     "postgres": {
-      "command": "pg-airman-mcp",
+      "command": "pgpacer",
       "args": [
         "--access-mode=unrestricted"
       ],
       "env": {
-        "AIRMAN_MCP_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname"
+        "PGPACER_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname"
       }
     }
   }
@@ -160,11 +172,11 @@ The Pg Airman MCP Docker image will automatically remap the hostname `localhost`
       "command": "uv",
       "args": [
         "run",
-        "pg-airman-mcp",
+        "pgpacer",
         "--access-mode=unrestricted"
       ],
       "env": {
-        "AIRMAN_MCP_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname"
+        "PGPACER_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname"
       }
     }
   }
@@ -179,7 +191,7 @@ Replace `postgresql://...` with your [Postgres database connection URI](https://
 
 ##### Access Mode
 
-Pg Airman MCP supports multiple *access modes* to give you control over the operations that the AI agent can perform on the database:
+pgpacer supports multiple *access modes* to give you control over the operations that the AI agent can perform on the database:
 
 - **Unrestricted Mode**: Allows full read/write access to modify data and schema. It is suitable for development environments.
 - **Restricted Mode**: Limits operations to read-only transactions and imposes constraints on resource utilization (presently only execution time). It is suitable for production environments.
@@ -240,18 +252,18 @@ Many MCP clients have similar configuration files to Claude Desktop, and you can
 
 ## SSE Transport
 
-Pg Airman MCP supports the [SSE transport](https://modelcontextprotocol.io/docs/concepts/transports#server-sent-events-sse), which allows multiple MCP clients to share one server, possibly a remote server.
-To use the SSE transport, you need to start the Pg Airman MCP server with the `--transport=sse` option.
+pgpacer supports the [SSE transport](https://modelcontextprotocol.io/docs/concepts/transports#server-sent-events-sse), which allows multiple MCP clients to share one server, possibly a remote server.
+To use the SSE transport, you need to start the pgpacer server with the `--transport=sse` option.
 
 For example, with Docker run:
 
 ```bash
 docker run -p 8000:8000 \
-  -e AIRMAN_MCP_DATABASE_URL=postgresql://username:password@localhost:5432/dbname \
-  enterprisedb/pg-airman-mcp --access-mode=unrestricted --transport=sse
+  -e PGPACER_DATABASE_URL=postgresql://username:password@localhost:5432/dbname \
+  pgpacer --access-mode=unrestricted --transport=sse
 ```
 
-Then update your MCP client configuration to call the Pg Airman MCP server.
+Then update your MCP client configuration to call the pgpacer server.
 For example, in Cursor's `mcp.json` or Cline's `cline_mcp_settings.json` you can put:
 
 ```json
@@ -280,15 +292,15 @@ For Windsurf, the format in `mcp_config.json` is slightly different:
 
 ## Streamable HTTP Transport
 
-Pg Airman MCP supports the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http), which allows multiple MCP clients to share one server, possibly a remote server.
+pgpacer supports the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http), which allows multiple MCP clients to share one server, possibly a remote server.
 To use the Streamable HTTP transport, you need to start the server with the `--transport=streamable-http` option.
 
 For example, with Docker run:
 
 ```bash
 docker run -p 8000:8000 \
-  -e AIRMAN_MCP_DATABASE_URL=postgresql://username:password@localhost:5432/dbname \
-  enterprisedb/pg-airman-mcp --access-mode=unrestricted --transport=streamable-http
+  -e PGPACER_DATABASE_URL=postgresql://username:password@localhost:5432/dbname \
+  pgpacer --access-mode=unrestricted --transport=streamable-http
 ```
 
 Then update your MCP client configuration to call the MCP server.
@@ -297,7 +309,7 @@ For example, in Cursor's `mcp.json` you can put:
 ```json
 {
     "mcpServers": {
-        "pg-airman": {
+        "pgpacer": {
             "url": "http://localhost:8000/mcp"
         }
     }
@@ -329,13 +341,13 @@ You can enable and configure it explicitly using environment variables or CLI ar
 To enable protection with the SDK's built-in localhost allowlist:
 
 ```bash
-AIRMAN_MCP_DNS_REBINDING_PROTECTION=true
+PGPACER_DNS_REBINDING_PROTECTION=true
 ```
 
 Or via CLI:
 
 ```bash
-pg-airman-mcp "postgresql://..." --transport=streamable-http --dns-rebinding-protection
+pgpacer "postgresql://..." --transport=streamable-http --dns-rebinding-protection
 ```
 
 ### Custom Host Allowlist
@@ -343,15 +355,15 @@ pg-airman-mcp "postgresql://..." --transport=streamable-http --dns-rebinding-pro
 To enable protection with a specific allowlist (setting `allowed_hosts` automatically enables protection):
 
 ```bash
-AIRMAN_MCP_ALLOWED_HOSTS="pg-airman-mcp-service:*,localhost:*"
-AIRMAN_MCP_ALLOWED_ORIGINS="http://pg-airman-mcp-service:*,http://localhost:*"
+PGPACER_ALLOWED_HOSTS="pgpacer-service:*,localhost:*"
+PGPACER_ALLOWED_ORIGINS="http://pgpacer-service:*,http://localhost:*"
 ```
 
 Wildcard port patterns (e.g., `myservice:*`) match any port on that host.
 
 ## Authentication (Optional)
 
-Pg Airman MCP supports OAuth 2.0 authentication to protect all MCP tools with bearer tokens.
+pgpacer supports OAuth 2.0 authentication to protect all MCP tools with bearer tokens.
 Two verification methods are available:
 
 - **Token Introspection** (default): Validates tokens by calling the authorization server's [introspection endpoint (RFC 7662)](https://datatracker.ietf.org/doc/html/rfc7662). Best when you need real-time revocation checking.
@@ -376,29 +388,29 @@ For detailed guidance on choosing between introspection and JWT, provider-specif
 #### Token Introspection (default)
 
 ```bash
-AIRMAN_MCP_AUTH_ENABLED=true
-AIRMAN_MCP_AUTH_SERVER_URL=http://localhost:9000
+PGPACER_AUTH_ENABLED=true
+PGPACER_AUTH_SERVER_URL=http://localhost:9000
 ```
 
 Or via CLI:
 
 ```bash
-pg-airman-mcp "postgresql://..." --auth-enabled --auth-server-url http://localhost:9000
+pgpacer "postgresql://..." --auth-enabled --auth-server-url http://localhost:9000
 ```
 
 #### JWT Verification
 
 ```bash
-AIRMAN_MCP_AUTH_ENABLED=true
-AIRMAN_MCP_AUTH_TYPE=jwt
-AIRMAN_MCP_AUTH_SERVER_URL=https://auth.example.com
-AIRMAN_MCP_JWT_ISSUER=https://auth.example.com
+PGPACER_AUTH_ENABLED=true
+PGPACER_AUTH_TYPE=jwt
+PGPACER_AUTH_SERVER_URL=https://auth.example.com
+PGPACER_JWT_ISSUER=https://auth.example.com
 ```
 
 Or via CLI:
 
 ```bash
-pg-airman-mcp "postgresql://..." --auth-enabled --auth-type jwt \
+pgpacer "postgresql://..." --auth-enabled --auth-type jwt \
   --auth-server-url https://auth.example.com \
   --jwt-issuer https://auth.example.com
 ```
@@ -417,18 +429,18 @@ pg-airman-mcp "postgresql://..." --auth-enabled --auth-type jwt \
         "-i",
         "--rm",
         "-e",
-        "AIRMAN_MCP_DATABASE_URL",
+        "PGPACER_DATABASE_URL",
         "-e",
-        "AIRMAN_MCP_AUTH_ENABLED",
+        "PGPACER_AUTH_ENABLED",
         "-e",
-        "AIRMAN_MCP_AUTH_SERVER_URL",
-        "enterprisedb/pg-airman-mcp",
+        "PGPACER_AUTH_SERVER_URL",
+        "pgpacer",
         "--access-mode=unrestricted"
       ],
       "env": {
-        "AIRMAN_MCP_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname",
-        "AIRMAN_MCP_AUTH_ENABLED": "true",
-        "AIRMAN_MCP_AUTH_SERVER_URL": "http://host.docker.internal:9000"
+        "PGPACER_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname",
+        "PGPACER_AUTH_ENABLED": "true",
+        "PGPACER_AUTH_SERVER_URL": "http://host.docker.internal:9000"
       }
     }
   }
@@ -439,21 +451,21 @@ pg-airman-mcp "postgresql://..." --auth-enabled --auth-type jwt \
 
 #### If you are using `pipx` or `uv`
 
-When using the `stdio` transport with authentication, you must set `AIRMAN_MCP_SERVER_URL` because the stdio transport does not have a natural HTTP endpoint, but the OAuth flow needs a server URL for resource validation.
+When using the `stdio` transport with authentication, you must set `PGPACER_SERVER_URL` because the stdio transport does not have a natural HTTP endpoint, but the OAuth flow needs a server URL for resource validation.
 
 ```json
 {
   "mcpServers": {
     "postgres": {
-      "command": "pg-airman-mcp",
+      "command": "pgpacer",
       "args": [
         "--access-mode=unrestricted",
         "--auth-enabled",
         "--auth-server-url", "http://localhost:9000"
       ],
       "env": {
-        "AIRMAN_MCP_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname",
-        "AIRMAN_MCP_SERVER_URL": "http://localhost:8000"
+        "PGPACER_DATABASE_URL": "postgresql://username:password@localhost:5432/dbname",
+        "PGPACER_SERVER_URL": "http://localhost:8000"
       }
     }
   }
@@ -466,10 +478,10 @@ When using network transports, enable authentication via environment variables o
 
 ```bash
 docker run -p 8000:8000 \
-  -e AIRMAN_MCP_DATABASE_URL=postgresql://username:password@localhost:5432/dbname \
-  -e AIRMAN_MCP_AUTH_ENABLED=true \
-  -e AIRMAN_MCP_AUTH_SERVER_URL=http://auth-server:9000 \
-  enterprisedb/pg-airman-mcp --access-mode=unrestricted --transport=sse
+  -e PGPACER_DATABASE_URL=postgresql://username:password@localhost:5432/dbname \
+  -e PGPACER_AUTH_ENABLED=true \
+  -e PGPACER_AUTH_SERVER_URL=http://auth-server:9000 \
+  pgpacer --access-mode=unrestricted --transport=sse
 ```
 
 The server URL is auto-detected from the host and port configuration for SSE and Streamable HTTP transports.
@@ -478,21 +490,21 @@ The server URL is auto-detected from the host and port configuration for SSE and
 
 | Variable | Description | Default |
 | -------- | ----------- | ------- |
-| `AIRMAN_MCP_AUTH_ENABLED` | Enable OAuth authentication | `false` |
-| `AIRMAN_MCP_AUTH_TYPE` | Authentication type: `introspection` or `jwt` | `introspection` |
-| `AIRMAN_MCP_AUTH_SERVER_URL` | Authorization server base URL | `http://localhost:9000` |
-| `AIRMAN_MCP_AUTH_INTROSPECTION_ENDPOINT` | Token introspection endpoint URL | `{auth-server-url}/introspect` |
-| `AIRMAN_MCP_AUTH_REQUIRED_SCOPES` | Comma-separated required OAuth scopes | `mcp:postgres:access` |
-| `AIRMAN_MCP_AUTH_VALIDATE_RESOURCE` | Enable RFC 8707 resource validation | `false` |
-| `AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_ID` | Client ID for introspection endpoint auth | *(none)* |
-| `AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_SECRET` | Client secret for introspection endpoint auth | *(none)* |
-| `AIRMAN_MCP_JWT_JWKS_URL` | JWKS endpoint URL (JWT mode) | `{auth-server-url}/.well-known/jwks.json` |
-| `AIRMAN_MCP_JWT_ISSUER` | Expected JWT `iss` claim (required for JWT mode) | *(none)* |
-| `AIRMAN_MCP_JWT_AUDIENCE` | Expected JWT `aud` claim | *(server URL)* |
-| `AIRMAN_MCP_JWT_ALGORITHMS` | Comma-separated signing algorithms | `RS256` |
-| `AIRMAN_MCP_JWT_CLOCK_SKEW` | Clock skew tolerance in seconds | `30` |
-| `AIRMAN_MCP_JWT_JWKS_CACHE_TTL` | JWKS cache TTL in seconds | `300` |
-| `AIRMAN_MCP_SERVER_URL` | This server's URL (required for stdio with auth) | *(auto-detected for SSE/HTTP)* |
+| `PGPACER_AUTH_ENABLED` | Enable OAuth authentication | `false` |
+| `PGPACER_AUTH_TYPE` | Authentication type: `introspection` or `jwt` | `introspection` |
+| `PGPACER_AUTH_SERVER_URL` | Authorization server base URL | `http://localhost:9000` |
+| `PGPACER_AUTH_INTROSPECTION_ENDPOINT` | Token introspection endpoint URL | `{auth-server-url}/introspect` |
+| `PGPACER_AUTH_REQUIRED_SCOPES` | Comma-separated required OAuth scopes | `mcp:postgres:access` |
+| `PGPACER_AUTH_VALIDATE_RESOURCE` | Enable RFC 8707 resource validation | `false` |
+| `PGPACER_AUTH_INTROSPECTION_CLIENT_ID` | Client ID for introspection endpoint auth | *(none)* |
+| `PGPACER_AUTH_INTROSPECTION_CLIENT_SECRET` | Client secret for introspection endpoint auth | *(none)* |
+| `PGPACER_JWT_JWKS_URL` | JWKS endpoint URL (JWT mode) | `{auth-server-url}/.well-known/jwks.json` |
+| `PGPACER_JWT_ISSUER` | Expected JWT `iss` claim (required for JWT mode) | *(none)* |
+| `PGPACER_JWT_AUDIENCE` | Expected JWT `aud` claim | *(server URL)* |
+| `PGPACER_JWT_ALGORITHMS` | Comma-separated signing algorithms | `RS256` |
+| `PGPACER_JWT_CLOCK_SKEW` | Clock skew tolerance in seconds | `30` |
+| `PGPACER_JWT_JWKS_CACHE_TTL` | JWKS cache TTL in seconds | `300` |
+| `PGPACER_SERVER_URL` | This server's URL (required for stdio with auth) | *(auto-detected for SSE/HTTP)* |
 
 ### Security Features
 
@@ -506,24 +518,24 @@ The server URL is auto-detected from the host and port configuration for SSE and
 
 ## Governance
 
-Pg Airman MCP provides governance features to help organizations track and audit AI agent interactions with their databases.
+pgpacer provides governance features to help organizations track and audit AI agent interactions with their databases.
 
 ### Purpose Logging
 
-The purpose feature allows you to label each Airman MCP instance with a static identifier that appears in PostgreSQL's `application_name` connection parameter. This enables database administrators to identify and audit connections by their intended use case.
+The purpose feature allows you to label each pgpacer instance with a static identifier that appears in PostgreSQL's `application_name` connection parameter. This enables database administrators to identify and audit connections by their intended use case.
 
 #### Enabling Purpose Logging
 
 Set the purpose via environment variable or CLI argument:
 
 ```bash
-AIRMAN_MCP_PURPOSE=credit-scoring
+PGPACER_PURPOSE=credit-scoring
 ```
 
 Or via CLI:
 
 ```bash
-pg-airman-mcp "postgresql://..." --purpose credit-scoring
+pgpacer "postgresql://..." --purpose credit-scoring
 ```
 
 #### Format Requirements
@@ -532,7 +544,7 @@ The purpose value must be lowercase alphanumeric with hyphens only (e.g., `credi
 
 #### How It Works
 
-When a purpose is configured, every database connection from this Airman instance sets `application_name` to `airman:<purpose>` (e.g., `airman:credit-scoring`). Database administrators can then:
+When a purpose is configured, every database connection from this pgpacer instance sets `application_name` to `pgpacer:<purpose>` (e.g., `pgpacer:credit-scoring`). Database administrators can then:
 
 - Filter `pg_stat_activity` by `application_name` to see active connections by purpose
 - Configure PostgreSQL logging to include `application_name` for audit trails
@@ -547,33 +559,33 @@ The tracing feature propagates session identifiers from MCP clients through to P
 Enable tracing via environment variable or CLI argument:
 
 ```bash
-AIRMAN_MCP_TRACING=true
+PGPACER_TRACING=true
 ```
 
 Or via CLI:
 
 ```bash
-pg-airman-mcp "postgresql://..." --tracing
+pgpacer "postgresql://..." --tracing
 ```
 
 #### How It Works
 
 When tracing is enabled, the MCP server extracts the session identifier from the `_meta.sessionId` field in MCP tool calls and sets `application_name` at the PostgreSQL session level using `SET` (outside any transaction, via autocommit). This ensures the session token is visible in `pg_stat_activity` both during query execution and on idle connections.
 
-If no `_meta.sessionId` is provided by the MCP client, Airman generates a fallback UUID at startup and uses that instead. The debug log indicates the source: `source=_meta` when received from the client, `source=fallback` when auto-generated.
+If no `_meta.sessionId` is provided by the MCP client, pgpacer generates a fallback UUID at startup and uses that instead. The debug log indicates the source: `source=_meta` when received from the client, `source=fallback` when auto-generated.
 
-The `application_name` format is `airman:<purpose>/<session-short>`, where session is truncated to 8 characters (like git short hashes):
+The `application_name` format is `pgpacer:<purpose>/<session-short>`, where session is truncated to 8 characters (like git short hashes):
 
-- **Tracing only**: `airman:_/91c11602`
-- **Both purpose and tracing**: `airman:credit-scoring/91c11602`
+- **Tracing only**: `pgpacer:_/91c11602`
+- **Both purpose and tracing**: `pgpacer:credit-scoring/91c11602`
 
-This format preserves the app identity (`airman`) for monitoring tools while providing purpose and session correlation.
+This format preserves the app identity (`pgpacer`) for monitoring tools while providing purpose and session correlation.
 
 #### Visibility in PostgreSQL
 
 | Surface | Token visible? | Notes |
 |---|---|---|
-| `pg_stat_activity` (active query) | Yes | Shows `airman:<purpose>/<session-short>` with the running query |
+| `pg_stat_activity` (active query) | Yes | Shows `pgpacer:<purpose>/<session-short>` with the running query |
 | `pg_stat_activity` (idle connection) | Yes | Token persists after query completes |
 | JSON logs (`log_destination=jsonlog`) | Yes | `application_name` field on every logged statement |
 | CSV logs (`log_destination=csvlog`) | Yes | `application_name` is always a column |
@@ -581,7 +593,7 @@ This format preserves the app identity (`airman`) for monitoring tools while pro
 
 #### Connection Pool Behavior
 
-Airman uses a connection pool (`min_size=1, max_size=5`). The session token is applied per-connection on the first tool call that uses it. Connections that have not yet executed a tool call (e.g. the initial pool health-check connection) will show the baseline `airman:<purpose>` without the session token suffix. After a connection executes its first tool call, the token persists on that connection for all subsequent queries and remains visible when idle.
+pgpacer uses a connection pool (`min_size=1, max_size=5`). The session token is applied per-connection on the first tool call that uses it. Connections that have not yet executed a tool call (e.g. the initial pool health-check connection) will show the baseline `pgpacer:<purpose>` without the session token suffix. After a connection executes its first tool call, the token persists on that connection for all subsequent queries and remains visible when idle.
 
 #### Use Cases
 
@@ -594,9 +606,9 @@ Airman uses a connection pool (`min_size=1, max_size=5`). The session token is a
 
 To enable index tuning and comprehensive performance analysis you need to load the `pg_stat_statements` and `hypopg` extensions on your database.
 
-- The `pg_stat_statements` extension allows Pg Airman MCP to analyze query execution statistics.
+- The `pg_stat_statements` extension allows pgpacer to analyze query execution statistics.
 For example, this allows it to understand which queries are running slow or consuming significant resources.
-- The `hypopg` extension allows Pg Airman MCP to simulate the behavior of the Postgres query planner after adding indexes.
+- The `hypopg` extension allows pgpacer to simulate the behavior of the Postgres query planner after adding indexes.
 
 ### Installing extensions on AWS RDS, Azure SQL, or Google Cloud SQL
 
@@ -621,7 +633,7 @@ These tools help an agent write correct SQL against an unfamiliar database:
 - A **knowledge map** is a searchable map of your tables, views and columns. The agent can find the right objects by meaning ("where are customer emails?").
 - A **golden query** is vetted, reusable business SQL ("monthly revenue", "customer by email") that the agent can discover and run instead of writing its own.
 
-Vectors are stored and compared with the open-source [pgvector](https://github.com/pgvector/pgvector) extension; no proprietary extension is required. pgvector stores vectors but does not create them, so **Pg Airman MCP computes embeddings itself** using a configured embedding provider.
+Vectors are stored and compared with the open-source [pgvector](https://github.com/pgvector/pgvector) extension; no proprietary extension is required. pgvector stores vectors but does not create them, so **pgpacer computes embeddings itself** using a configured embedding provider.
 
 ### Requirements
 
@@ -637,19 +649,19 @@ Vectors are stored and compared with the open-source [pgvector](https://github.c
 
 ```bash
 # OpenAI
-AIRMAN_MCP_EMBEDDING_PROVIDER=openai
-AIRMAN_MCP_EMBEDDING_MODEL=text-embedding-3-small
-AIRMAN_MCP_EMBEDDING_API_KEY=sk-...
+PGPACER_EMBEDDING_PROVIDER=openai
+PGPACER_EMBEDDING_MODEL=text-embedding-3-small
+PGPACER_EMBEDDING_API_KEY=sk-...
 
 # Self-hosted Ollama (no API key needed)
-AIRMAN_MCP_EMBEDDING_PROVIDER=openai
-AIRMAN_MCP_EMBEDDING_MODEL=nomic-embed-text
-AIRMAN_MCP_EMBEDDING_BASE_URL=http://localhost:11434/v1
+PGPACER_EMBEDDING_PROVIDER=openai
+PGPACER_EMBEDDING_MODEL=nomic-embed-text
+PGPACER_EMBEDDING_BASE_URL=http://localhost:11434/v1
 
 # Hugging Face TEI running as a sibling container
-AIRMAN_MCP_EMBEDDING_PROVIDER=openai
-AIRMAN_MCP_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
-AIRMAN_MCP_EMBEDDING_BASE_URL=http://tei:80/v1
+PGPACER_EMBEDDING_PROVIDER=openai
+PGPACER_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+PGPACER_EMBEDDING_BASE_URL=http://tei:80/v1
 ```
 
 Each knowledge map records the model and vector size it was built with. Searching with a different model is rejected, because vectors from different models are not comparable. To switch models, recreate the knowledge map.
@@ -663,13 +675,13 @@ Each knowledge map records the model and vector size it was built with. Searchin
 
 ### Storage and Permissions
 
-On the first `create_knowledge_map`, the server creates an `airman_semantic` schema with three tables (`knowledge_maps`, `knowledge_map_entries`, `golden_queries`). The DDL is in [`src/pg_airman_mcp/semantics/schema.sql`](src/pg_airman_mcp/semantics/schema.sql). DBAs who prefer to provision it themselves can run that script; every statement is idempotent, and the server then needs no `CREATE` privilege.
+On the first `create_knowledge_map`, the server creates a `pgpacer` schema with three tables (`knowledge_maps`, `knowledge_map_entries`, `golden_queries`). The DDL is in [`src/pgpacer/semantics/schema.sql`](src/pgpacer/semantics/schema.sql). DBAs who prefer to provision it themselves can run that script; every statement is idempotent, and the server then needs no `CREATE` privilege.
 
 A restricted-mode server can use a read-only role:
 
 ```sql
-GRANT USAGE ON SCHEMA airman_semantic TO mcp_readonly;
-GRANT SELECT ON ALL TABLES IN SCHEMA airman_semantic TO mcp_readonly;
+GRANT USAGE ON SCHEMA pgpacer TO mcp_readonly;
+GRANT SELECT ON ALL TABLES IN SCHEMA pgpacer TO mcp_readonly;
 ```
 
 | Operation | Unrestricted | Restricted |
@@ -690,7 +702,7 @@ Golden queries are parameterized SQL such as `SELECT * FROM sales.customers WHER
 
 ### Embedding Service Security
 
-- The API key is read from `AIRMAN_MCP_EMBEDDING_API_KEY` only (no CLI flag, so it never appears in process listings) and is never logged.
+- The API key is read from `PGPACER_EMBEDDING_API_KEY` only (no CLI flag, so it never appears in process listings) and is never logged.
 - The server refuses to send an API key over plain `http://` to anything other than `localhost`. Keyless `http://` endpoints (for example an internal Ollama or TEI container) are allowed with a warning, since schema metadata is then sent unencrypted.
 - Redirects are not followed, responses are validated (count, dimensions, finite values), and transient failures (HTTP 429/5xx, network errors) are retried with backoff.
 - **Data sent to the provider:** schema metadata (object names, types, comments), golden query descriptions and search queries. Table *data* is never sent. Use a self-hosted provider if this metadata must not leave your network.
@@ -753,11 +765,11 @@ Ask:
 
 The [MCP standard](https://modelcontextprotocol.io/) defines various types of endpoints: Tools, Resources, Prompts, and others.
 
-Pg Airman MCP provides functionality via [MCP tools](https://modelcontextprotocol.io/docs/concepts/tools) alone.
+pgpacer provides functionality via [MCP tools](https://modelcontextprotocol.io/docs/concepts/tools) alone.
 We chose this approach because the [MCP client ecosystem](https://modelcontextprotocol.io/clients) has widespread support for MCP tools.
 This contrasts with the approach of other Postgres MCP servers, including the [Reference Postgres MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/postgres), which use [MCP resources](https://modelcontextprotocol.io/docs/concepts/resources) to expose schema information.
 
-Pg Airman MCP Tools:
+pgpacer Tools:
 
 | Tool Name | Description |
 |-----------|-------------|
@@ -785,25 +797,45 @@ Pg Airman MCP Tools:
 | `list_golden_queries` | List all available golden queries with name, description, query text, parameters, and parameter count. |
 | `discover_context` | Discover schema metadata and golden queries relevant to a business question in a single call (for SQL generation). Combines `search_knowledge_map` and `search_golden_queries` with configurable similarity threshold and result limits. |
 
+## Migrating from pg-airman-mcp
+
+This project was previously named PG Airman MCP (`pg-airman-mcp`). The rename changes these names:
+
+| Before | After |
+| ------ | ----- |
+| Package, CLI command and Docker image `pg-airman-mcp` | `pgpacer` |
+| Python package `pg_airman_mcp` | `pgpacer` |
+| Environment variables `AIRMAN_MCP_*` | `PGPACER_*` |
+| `application_name` prefix `airman:` (purpose and tracing) | `pgpacer:` |
+| Knowledge map storage schema `airman_semantic` | `pgpacer` |
+| Built-in hash embedding model `airman-hash-v1` | `pgpacer-hash-v1` |
+| Comment tagging restricted-mode queries `/* enterprisedb */` | `/* pgpacer */` |
+| Name prefix of recommended indexes `enterprisedb_idx_` | `pgpacer_idx_` |
+
+- **Environment variables keep working.** An `AIRMAN_MCP_*` variable is still used when its `PGPACER_*` counterpart is not set, and the server logs a deprecation warning naming the replacement. The old names are deprecated, so rename them when convenient.
+- **Update monitoring that matches `application_name`.** Filters, dashboards and log alerts that look for `airman:` should look for `pgpacer:` instead.
+- **Purpose labels are limited to 46 characters** (previously 47). `pgpacer:` is one character longer than `airman:`, and PostgreSQL limits `application_name` to 63 bytes.
+- **Recreate knowledge maps and golden queries.** Ones stored in the old `airman_semantic` schema are not read. Recreate them with `create_knowledge_map` and `create_golden_query`, then remove the old schema with `DROP SCHEMA airman_semantic CASCADE`.
+
 ## Frequently Asked Questions
 
-*How is Pg Airman MCP different from other Postgres MCP servers?*
+*How is pgpacer different from other Postgres MCP servers?*
 There are many MCP servers that allow an AI agent to run queries against a Postgres database.
-Pg Airman MCP does that too, but also adds tools for understanding and improving the performance of your Postgres database.
+pgpacer does that too, but also adds tools for understanding and improving the performance of your Postgres database.
 For example, it implements a version of the [Anytime Algorithm of Database Tuning Advisor for Microsoft SQL Server](https://www.microsoft.com/en-us/research/wp-content/uploads/2020/06/Anytime-Algorithm-of-Database-Tuning-Advisor-for-Microsoft-SQL-Server.pdf), a modern industrial-strength algorithm for automatic index tuning.
 
-Pg Airman MCP complements generative AI by adding deterministic tools and classical optimization algorithms.
+pgpacer complements generative AI by adding deterministic tools and classical optimization algorithms.
 The combination is both reliable and flexible.
 
 *Why are MCP tools needed when the LLM can reason, generate SQL, etc?*
 LLMs are invaluable for tasks that involve ambiguity, reasoning, or natural language.
 When compared to procedural code, however, they can be slow, expensive, non-deterministic, and sometimes produce unreliable results.
 In the case of database tuning, we have well established algorithms, developed over decades, that are proven to work.
-Pg Airman MCP lets you combine the best of both worlds by pairing LLMs with classical optimization algorithms and other procedural tools.
+pgpacer lets you combine the best of both worlds by pairing LLMs with classical optimization algorithms and other procedural tools.
 
-*How do you test Pg Airman MCP?*
-Testing is critical to ensuring that Pg Airman MCP is reliable and accurate.
-We are building out a suite of AI-generated adversarial workloads designed to challenge Pg Airman MCP and ensure it performs under a broad variety of scenarios.
+*How do you test pgpacer?*
+Testing is critical to ensuring that pgpacer is reliable and accurate.
+We are building out a suite of AI-generated adversarial workloads designed to challenge pgpacer and ensure it performs under a broad variety of scenarios.
 
 *What Postgres versions are supported?*
 Our testing presently focuses on Postgres 15, 16, 17, and 18.
@@ -822,71 +854,69 @@ PGVECTOR_TEST_DSN="postgresql://postgres@localhost:5432/postgres" uv run pytest 
 
 *Who created this project?*
 This project was created by [Crystal DBA](https://www.crystaldba.ai).
-We evaluated a number of MCP servers for Postgres and found this project
-from Crystal DBA to be excellent. We’ve been using it internally and it’s
-been stable and useful. We were sad to see the original team move onto other
-pursuits, so we’ve forked the project and will continue to add features.
+Then evaluated and decided to use by EDB as their main MCP Server. But then they decided to not to support the project any longer. I’ve been using it internally and it’s been stable and useful. I was sad to see the original team move onto other
+pursuits, so I've forked the project and will continue to add features.
 
 ## Roadmap
 
 *TBD*
 
 You and your needs are a critical driver for what we build.
-Tell us what you want to see by opening an [issue](https://github.com/EnterpriseDB/pg-airman-mcp/) or a [pull request](https://github.com/EnterpriseDB/pg-airman-mcp/pulls).
+Tell us what you want to see by opening an [issue](https://github.com/aysebilgegunduz/pgpacer/) or a [pull request](https://github.com/aysebilgegunduz/pgpacer/pulls).
 
 ## Configuration Reference
 
 All settings follow a three-tier priority: CLI arguments > environment variables > defaults.
-Environment variables use the `AIRMAN_MCP_` prefix.
+Environment variables use the `PGPACER_` prefix.
 
 ### Server Settings
 
 | Variable | CLI Argument | Description | Default |
 | -------- | ------------ | ----------- | ------- |
-| `AIRMAN_MCP_DATABASE_URL` | `database_url` (positional) | PostgreSQL connection URL | *(required)* |
-| `AIRMAN_MCP_ACCESS_MODE` | `--access-mode` | SQL access mode: `unrestricted` or `restricted` | `unrestricted` |
-| `AIRMAN_MCP_TRANSPORT` | `--transport` | MCP transport: `stdio`, `sse`, or `streamable-http` | `stdio` |
-| `AIRMAN_MCP_SSE_HOST` | `--sse-host` | SSE server host | `localhost` |
-| `AIRMAN_MCP_SSE_PORT` | `--sse-port` | SSE server port | `8000` |
-| `AIRMAN_MCP_STREAMABLE_HTTP_HOST` | `--streamable-http-host` | Streamable HTTP server host | `localhost` |
-| `AIRMAN_MCP_STREAMABLE_HTTP_PORT` | `--streamable-http-port` | Streamable HTTP server port | `8001` |
-| `AIRMAN_MCP_DNS_REBINDING_PROTECTION` | `--dns-rebinding-protection` | Enable DNS rebinding protection | `false` |
-| `AIRMAN_MCP_ALLOWED_HOSTS` | `--allowed-hosts` | Comma-separated allowed Host header values | *(empty)* |
-| `AIRMAN_MCP_PURPOSE` | `--purpose` | Static purpose label for governance logging | *(none)* |
-| `AIRMAN_MCP_TRACING` | `--tracing` | Enable session token tracing via application_name | `false` |
-| `AIRMAN_MCP_ALLOWED_ORIGINS` | `--allowed-origins` | Comma-separated allowed Origin header values | *(empty)* |
+| `PGPACER_DATABASE_URL` | `database_url` (positional) | PostgreSQL connection URL | *(required)* |
+| `PGPACER_ACCESS_MODE` | `--access-mode` | SQL access mode: `unrestricted` or `restricted` | `unrestricted` |
+| `PGPACER_TRANSPORT` | `--transport` | MCP transport: `stdio`, `sse`, or `streamable-http` | `stdio` |
+| `PGPACER_SSE_HOST` | `--sse-host` | SSE server host | `localhost` |
+| `PGPACER_SSE_PORT` | `--sse-port` | SSE server port | `8000` |
+| `PGPACER_STREAMABLE_HTTP_HOST` | `--streamable-http-host` | Streamable HTTP server host | `localhost` |
+| `PGPACER_STREAMABLE_HTTP_PORT` | `--streamable-http-port` | Streamable HTTP server port | `8001` |
+| `PGPACER_DNS_REBINDING_PROTECTION` | `--dns-rebinding-protection` | Enable DNS rebinding protection | `false` |
+| `PGPACER_ALLOWED_HOSTS` | `--allowed-hosts` | Comma-separated allowed Host header values | *(empty)* |
+| `PGPACER_PURPOSE` | `--purpose` | Static purpose label for governance logging | *(none)* |
+| `PGPACER_TRACING` | `--tracing` | Enable session token tracing via application_name | `false` |
+| `PGPACER_ALLOWED_ORIGINS` | `--allowed-origins` | Comma-separated allowed Origin header values | *(empty)* |
 
 ### Authentication Settings
 
 | Variable | CLI Argument | Description | Default |
 | -------- | ------------ | ----------- | ------- |
-| `AIRMAN_MCP_AUTH_ENABLED` | `--auth-enabled` | Enable OAuth authentication | `false` |
-| `AIRMAN_MCP_AUTH_TYPE` | `--auth-type` | Authentication type: `introspection` or `jwt` | `introspection` |
-| `AIRMAN_MCP_AUTH_SERVER_URL` | `--auth-server-url` | Authorization server base URL | `http://localhost:9000` |
-| `AIRMAN_MCP_AUTH_INTROSPECTION_ENDPOINT` | `--auth-introspection-endpoint` | Token introspection endpoint URL | `{auth-server-url}/introspect` |
-| `AIRMAN_MCP_AUTH_REQUIRED_SCOPES` | `--auth-required-scopes` | Comma-separated required OAuth scopes | `mcp:postgres:access` |
-| `AIRMAN_MCP_AUTH_VALIDATE_RESOURCE` | `--auth-validate-resource` | Enable RFC 8707 resource validation | `false` |
-| `AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_ID` | `--auth-introspection-client-id` | Client ID for introspection endpoint auth | *(none)* |
-| `AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_SECRET` | `--auth-introspection-client-secret` | Client secret for introspection endpoint auth | *(none)* |
-| `AIRMAN_MCP_JWT_JWKS_URL` | `--jwt-jwks-url` | JWKS endpoint URL | `{auth-server-url}/.well-known/jwks.json` |
-| `AIRMAN_MCP_JWT_ISSUER` | `--jwt-issuer` | Expected JWT `iss` claim (required for JWT) | *(none)* |
-| `AIRMAN_MCP_JWT_AUDIENCE` | `--jwt-audience` | Expected JWT `aud` claim | *(server URL)* |
-| `AIRMAN_MCP_JWT_ALGORITHMS` | `--jwt-algorithms` | Comma-separated signing algorithms | `RS256` |
-| `AIRMAN_MCP_JWT_CLOCK_SKEW` | `--jwt-clock-skew` | Clock skew tolerance in seconds | `30` |
-| `AIRMAN_MCP_JWT_JWKS_CACHE_TTL` | `--jwt-jwks-cache-ttl` | JWKS cache TTL in seconds | `300` |
-| `AIRMAN_MCP_SERVER_URL` | *(env only)* | This server's URL (required for stdio with auth) | *(auto-detected for SSE/HTTP)* |
+| `PGPACER_AUTH_ENABLED` | `--auth-enabled` | Enable OAuth authentication | `false` |
+| `PGPACER_AUTH_TYPE` | `--auth-type` | Authentication type: `introspection` or `jwt` | `introspection` |
+| `PGPACER_AUTH_SERVER_URL` | `--auth-server-url` | Authorization server base URL | `http://localhost:9000` |
+| `PGPACER_AUTH_INTROSPECTION_ENDPOINT` | `--auth-introspection-endpoint` | Token introspection endpoint URL | `{auth-server-url}/introspect` |
+| `PGPACER_AUTH_REQUIRED_SCOPES` | `--auth-required-scopes` | Comma-separated required OAuth scopes | `mcp:postgres:access` |
+| `PGPACER_AUTH_VALIDATE_RESOURCE` | `--auth-validate-resource` | Enable RFC 8707 resource validation | `false` |
+| `PGPACER_AUTH_INTROSPECTION_CLIENT_ID` | `--auth-introspection-client-id` | Client ID for introspection endpoint auth | *(none)* |
+| `PGPACER_AUTH_INTROSPECTION_CLIENT_SECRET` | `--auth-introspection-client-secret` | Client secret for introspection endpoint auth | *(none)* |
+| `PGPACER_JWT_JWKS_URL` | `--jwt-jwks-url` | JWKS endpoint URL | `{auth-server-url}/.well-known/jwks.json` |
+| `PGPACER_JWT_ISSUER` | `--jwt-issuer` | Expected JWT `iss` claim (required for JWT) | *(none)* |
+| `PGPACER_JWT_AUDIENCE` | `--jwt-audience` | Expected JWT `aud` claim | *(server URL)* |
+| `PGPACER_JWT_ALGORITHMS` | `--jwt-algorithms` | Comma-separated signing algorithms | `RS256` |
+| `PGPACER_JWT_CLOCK_SKEW` | `--jwt-clock-skew` | Clock skew tolerance in seconds | `30` |
+| `PGPACER_JWT_JWKS_CACHE_TTL` | `--jwt-jwks-cache-ttl` | JWKS cache TTL in seconds | `300` |
+| `PGPACER_SERVER_URL` | *(env only)* | This server's URL (required for stdio with auth) | *(auto-detected for SSE/HTTP)* |
 
 ### Semantic Search Settings
 
 | Variable | CLI Argument | Description | Default |
 | -------- | ------------ | ----------- | ------- |
-| `AIRMAN_MCP_EMBEDDING_PROVIDER` | `--embedding-provider` | Embedding provider: `openai` (any OpenAI-compatible API) or `hash` (offline, lexical) | *(none: semantic search disabled)* |
-| `AIRMAN_MCP_EMBEDDING_MODEL` | `--embedding-model` | Embedding model name (required for `openai`) | *(none)* |
-| `AIRMAN_MCP_EMBEDDING_BASE_URL` | `--embedding-base-url` | OpenAI-compatible API base URL | `https://api.openai.com/v1` |
-| `AIRMAN_MCP_EMBEDDING_API_KEY` | *(env only)* | API key for the embedding service | *(none)* |
-| `AIRMAN_MCP_EMBEDDING_DIMENSIONS` | `--embedding-dimensions` | Vector size to request (e.g. for `text-embedding-3-*`); `hash` defaults to 512 | *(model native)* |
-| `AIRMAN_MCP_EMBEDDING_TIMEOUT` | *(env only)* | Embedding request timeout in seconds | `30` |
-| `AIRMAN_MCP_EMBEDDING_BATCH_SIZE` | *(env only)* | Maximum texts per embedding request | `32` |
+| `PGPACER_EMBEDDING_PROVIDER` | `--embedding-provider` | Embedding provider: `openai` (any OpenAI-compatible API) or `hash` (offline, lexical) | *(none: semantic search disabled)* |
+| `PGPACER_EMBEDDING_MODEL` | `--embedding-model` | Embedding model name (required for `openai`) | *(none)* |
+| `PGPACER_EMBEDDING_BASE_URL` | `--embedding-base-url` | OpenAI-compatible API base URL | `https://api.openai.com/v1` |
+| `PGPACER_EMBEDDING_API_KEY` | *(env only)* | API key for the embedding service | *(none)* |
+| `PGPACER_EMBEDDING_DIMENSIONS` | `--embedding-dimensions` | Vector size to request (e.g. for `text-embedding-3-*`); `hash` defaults to 512 | *(model native)* |
+| `PGPACER_EMBEDDING_TIMEOUT` | *(env only)* | Embedding request timeout in seconds | `30` |
+| `PGPACER_EMBEDDING_BATCH_SIZE` | *(env only)* | Maximum texts per embedding request | `32` |
 
 ### Other Settings
 
@@ -898,7 +928,7 @@ Environment variables use the `AIRMAN_MCP_` prefix.
 
 ## Technical Notes
 
-This section includes a high-level overview of technical considerations that influenced the design of Pg Airman MCP.
+This section includes a high-level overview of technical considerations that influenced the design of pgpacer.
 
 ### Index Tuning
 
@@ -906,11 +936,11 @@ Developers know that missing indexes are one of the most common causes of databa
 Indexes provide access methods that allow Postgres to quickly locate data that is required to execute a query.
 When tables are small, indexes make little difference, but as the size of the data grows, the difference in algorithmic complexity between a table scan and an index lookup becomes significant (typically *O*(*n*) vs *O*(*log* *n*), potentially more if joins on multiple tables are involved).
 
-Generating suggested indexes in Pg Airman MCP proceeds in several stages:
+Generating suggested indexes in pgpacer proceeds in several stages:
 
 1. *Identify SQL queries in need of tuning*.
     If you know you are having problems with a specific SQL query you can provide it.
-    Pg Airman MCP can also analyze the workload to identify index tuning targets.
+    pgpacer can also analyze the workload to identify index tuning targets.
     To do this, it relies on the `pg_stat_statements` extension, which records the runtime and resource consumption of each query.
 
     A query is a candidate for index tuning if it is a top resource consumer, either on a per-execution basis or an aggregate.
@@ -919,7 +949,7 @@ Generating suggested indexes in Pg Airman MCP proceeds in several stages:
     Agents may also call `get_top_queries`, which accepts a parameter for mean vs. total execution time, then passes these queries to `analyze_query_indexes` to get index recommendations.
 
     Sophisticated index tuning systems use "workload compression" to produce a representative subset of queries that reflects the characteristics of the workload as a whole, reducing the problem for downstream algorithms.
-    Pg Airman MCP performs a limited form of workload compression by normalizing queries so that those generated from the same template appear as one.
+    pgpacer performs a limited form of workload compression by normalizing queries so that those generated from the same template appear as one.
     It weights each query equally, a simplification that works when the benefits to indexing are large.
 
 2. *Generate candidate indexes*
@@ -970,7 +1000,7 @@ This gives the LLM additional context that it can use when responding to the ind
 
 ### Experimental: Index Tuning by LLM
 
-Pg Airman MCP includes an experimental index tuning feature based on [Optimization by LLM](https://arxiv.org/abs/2309.03409).
+pgpacer includes an experimental index tuning feature based on [Optimization by LLM](https://arxiv.org/abs/2309.03409).
 Instead of using heuristics to explore possible index configurations, we provide the database schema and query plans to an LLM and ask it to propose index configurations.
 We then use `hypopg` to predict performance with the proposed indexes, then feed those results back into the LLM to produce a new set of suggestions.
 We repeat this process until multiple rounds of iteration produce no further improvements.
@@ -983,7 +1013,7 @@ In order to perform index optimization by LLM, you must provide an OpenAI API ke
 ### Database Health
 
 Database health checks identify tuning opportunities and maintenance needs before they lead to critical issues.
-In the present release, Pg Airman MCP adapts the database health checks directly from [PgHero](https://github.com/ankane/pghero).
+In the present release, pgpacer adapts the database health checks directly from [PgHero](https://github.com/ankane/pghero).
 We are working to fully validate these checks and may extend them in the future.
 
 - *Index Health*. Looks for unused indexes, duplicate indexes, and indexes that are bloated. Bloated indexes make inefficient use of database pages.
@@ -1007,7 +1037,7 @@ We are working to fully validate these checks and may extend them in the future.
 
 ### Postgres Client Library
 
-Pg Airman MCP uses [psycopg3](https://www.psycopg.org/) to connect to Postgres using asynchronous I/O.
+pgpacer uses [psycopg3](https://www.psycopg.org/) to connect to Postgres using asynchronous I/O.
 Under the hood, psycopg3 uses the [libpq](https://www.postgresql.org/docs/current/libpq.html) library to connect to Postgres, providing access to the full Postgres feature set and an underlying implementation fully supported by the Postgres community.
 
 Some other Python-based MCP servers use [asyncpg](https://github.com/MagicStack/asyncpg), which may simplify installation by eliminating the `libpq` dependency.
@@ -1019,7 +1049,7 @@ We remain open to revising this decision in the future.
 
 ### Connection Configuration
 
-Like the [Reference PostgreSQL MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/postgres), Pg Airman MCP takes Postgres connection information at startup.
+Like the [Reference PostgreSQL MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/postgres), pgpacer takes Postgres connection information at startup.
 This is convenient for users who always connect to the same database but can be cumbersome when users switch databases.
 
 An alternative approach, taken by [PG-MCP](https://github.com/stuzero/pg-mcp-server), is to provide connection details via MCP tool calls at the time of use.
@@ -1053,15 +1083,15 @@ AI amplifies longstanding challenges of protecting databases from a range of thr
 Whether the threat is accidental or malicious, a similar security framework applies, with aims that fall into three categories: confidentiality, integrity, and availability.
 The familiar tension between convenience and safety is also evident and pronounced.
 
-Pg Airman MCP's protected SQL execution mode focuses on integrity.
+pgpacer's protected SQL execution mode focuses on integrity.
 In the context of MCP, we are most concerned with LLM-generated SQL causing damage—for example, unintended data modification or deletion, or other changes that might circumvent an organization's change management process.
 
 The simplest way to provide integrity is to ensure that all SQL executed against the database is read-only.
 One way to do this is by creating a database user with read-only access permissions.
 While this is a good approach, many find this cumbersome in practice.
-Postgres does not provide a way to place a connection or session into read-only mode, so Pg Airman MCP uses a more complex approach to ensure read-only SQL execution on top of a read-write connection.
+Postgres does not provide a way to place a connection or session into read-only mode, so pgpacer uses a more complex approach to ensure read-only SQL execution on top of a read-write connection.
 
-Pg Airman MCP provides a read-only transaction mode that prevents data and schema modifications.
+pgpacer provides a read-only transaction mode that prevents data and schema modifications.
 Like the [Reference PostgreSQL MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/postgres), we use read-only transactions to provide protected SQL execution.
 
 To make this mechanism robust, we need to ensure that the SQL does not somehow circumvent the read-only transaction mode, say by issuing a `COMMIT` or `ROLLBACK` statement and then beginning a new transaction.
@@ -1078,7 +1108,7 @@ We reject any SQL that contains `commit` or `rollback` statements.
 Helpfully, the popular Postgres stored procedure languages, including PL/pgSQL and PL/Python, do not allow for `COMMIT` or `ROLLBACK` statements.
 If you have unsafe stored procedure languages enabled on your database, then our read-only protections could be circumvented.
 
-At present, Pg Airman MCP provides two levels of protection for the database, one at either extreme of the convenience/safety spectrum.
+At present, pgpacer provides two levels of protection for the database, one at either extreme of the convenience/safety spectrum.
 
 - "Unrestricted" provides maximum flexibility. It is suitable for development environments where speed and flexibility are paramount, and where there is no need to protect valuable or sensitive data.
 - "Restricted" provides a balance between flexibility and safety. It is suitable for production environments where the database is exposed to untrusted users, and where it is important to protect valuable or sensitive data.
@@ -1090,9 +1120,9 @@ We designed restricted mode to be conservative, erring on the side of safety eve
 Restricted mode is limited to read-only operations, and we limit query execution time to prevent long-running queries from impacting system performance.
 We may add measures in the future to make sure that restricted mode is safe to use with production databases.
 
-## Pg Airman MCP Development
+## pgpacer Development
 
-The instructions below are for developers who want to work on Pg Airman MCP, or users who prefer to install Pg Airman MCP from source.
+The instructions below are for developers who want to work on pgpacer, or users who prefer to install pgpacer from source.
 
 ### Local Development Setup
 
@@ -1105,8 +1135,8 @@ The instructions below are for developers who want to work on Pg Airman MCP, or 
 2. **Clone the repository**:
 
    ```bash
-   git clone https://github.com/EnterpriseDB/pg-airman-mcp.git
-   cd pg-airman-mcp
+   git clone https://github.com/aysebilgegunduz/pgpacer.git
+   cd pgpacer
    ```
 
 3. **Install dependencies**:
@@ -1119,5 +1149,5 @@ The instructions below are for developers who want to work on Pg Airman MCP, or 
 4. **Run the server**:
 
    ```bash
-   uv run pg-airman-mcp "postgres://user:password@localhost:5432/dbname"
+   uv run pgpacer "postgres://user:password@localhost:5432/dbname"
    ```

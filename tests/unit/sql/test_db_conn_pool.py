@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from pg_airman_mcp.sql.sql_driver import DbConnPool
+from pgpacer.sql.sql_driver import DbConnPool
 
 
 class AsyncContextManagerMock(AsyncMock):
@@ -48,9 +48,7 @@ def mock_pool():
 @pytest.mark.asyncio
 async def test_pool_connect_success(mock_pool):
     """Test successful connection to the database pool."""
-    with patch(
-        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool
-    ):
+    with patch("pgpacer.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool):
         # Patch the connection test part to skip it
         with patch.object(
             DbConnPool, "pool_connect", new=AsyncMock(return_value=mock_pool)
@@ -84,10 +82,8 @@ async def test_pool_connect_with_retry(mock_pool):
             self._is_valid = True
             return mock_pool
 
-    with patch(
-        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool
-    ):
-        with patch("pg_airman_mcp.server.asyncio.sleep", AsyncMock()) as mock_sleep:
+    with patch("pgpacer.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool):
+        with patch("pgpacer.server.asyncio.sleep", AsyncMock()) as mock_sleep:
             with patch.object(DbConnPool, "pool_connect", mock_pool_connect):
                 db_pool = DbConnPool("postgresql://user:pass@localhost/db")
 
@@ -111,9 +107,7 @@ async def test_pool_connect_all_retries_fail(mock_pool):
     mock_pool.open.side_effect = Exception("Persistent connection error")
 
     # Configure AsyncConnectionPool's constructor to return our mock
-    with patch(
-        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool
-    ):
+    with patch("pgpacer.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool):
         # Mock sleep to speed up test
         with patch("asyncio.sleep", AsyncMock()):
             db_pool = DbConnPool("postgresql://user:pass@localhost/db")
@@ -131,9 +125,7 @@ async def test_pool_connect_all_retries_fail(mock_pool):
 @pytest.mark.asyncio
 async def test_close_pool(mock_pool):
     """Test closing the connection pool."""
-    with patch(
-        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool
-    ):
+    with patch("pgpacer.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool):
         db_pool = DbConnPool("postgresql://user:pass@localhost/db")
 
         # Mock the pool_connect method to avoid actual connection
@@ -156,9 +148,7 @@ async def test_close_handles_errors(mock_pool):
     """Test that close() handles exceptions gracefully."""
     mock_pool.close.side_effect = Exception("Error closing pool")
 
-    with patch(
-        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool
-    ):
+    with patch("pgpacer.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool):
         db_pool = DbConnPool("postgresql://user:pass@localhost/db")
 
         # Mock the pool_connect method to avoid actual connection
@@ -178,9 +168,7 @@ async def test_close_handles_errors(mock_pool):
 @pytest.mark.asyncio
 async def test_pool_connect_initialized(mock_pool):
     """Test pool_connect when pool is already initialized."""
-    with patch(
-        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool
-    ):
+    with patch("pgpacer.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool):
         db_pool = DbConnPool("postgresql://user:pass@localhost/db")
 
         # Mock the pool_connect method to avoid actual connection
@@ -203,9 +191,7 @@ async def test_pool_connect_initialized(mock_pool):
 @pytest.mark.asyncio
 async def test_pool_connect_not_initialized(mock_pool):
     """Test pool_connect when pool is not yet initialized."""
-    with patch(
-        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool
-    ):
+    with patch("pgpacer.sql.sql_driver.AsyncConnectionPool", return_value=mock_pool):
         db_pool = DbConnPool("postgresql://user:pass@localhost/db")
 
         # Mock the pool_connect method to avoid actual connection
@@ -260,7 +246,7 @@ async def test_concurrent_pool_connect_creates_a_single_pool():
     """Concurrent first use must not build several pools and close each other's."""
     pool = fake_pool()
     with patch(
-        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool", return_value=pool
+        "pgpacer.sql.sql_driver.AsyncConnectionPool", return_value=pool
     ) as pool_class:
         db_pool = DbConnPool("postgresql://user:pass@localhost/db")
 
@@ -277,7 +263,7 @@ async def test_pool_connect_rebuilds_an_invalidated_pool_once():
     """After invalidation, concurrent callers share one replacement pool."""
     original, replacement = fake_pool(), fake_pool()
     with patch(
-        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool",
+        "pgpacer.sql.sql_driver.AsyncConnectionPool",
         side_effect=[original, replacement],
     ) as pool_class:
         db_pool = DbConnPool("postgresql://user:pass@localhost/db")

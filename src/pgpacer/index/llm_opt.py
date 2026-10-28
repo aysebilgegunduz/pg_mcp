@@ -8,9 +8,9 @@ from openai import OpenAI
 from pglast.ast import SelectStmt
 from pydantic import BaseModel
 
-from pg_airman_mcp.artifacts import ErrorResult
-from pg_airman_mcp.explain.explain_plan import ExplainPlanTool
-from pg_airman_mcp.sql import TableAliasVisitor
+from pgpacer.artifacts import ErrorResult
+from pgpacer.explain.explain_plan import ExplainPlanTool
+from pgpacer.sql import TableAliasVisitor
 
 from ..sql import IndexDefinition, SqlDriver
 from .index_opt_base import IndexRecommendation, IndexTuningBase

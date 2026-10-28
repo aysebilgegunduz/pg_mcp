@@ -1,6 +1,6 @@
 """Tests for catalog entity descriptions and refresh planning."""
 
-from pg_airman_mcp.semantics.catalog import CatalogEntity, build_entities, plan_sync
+from pgpacer.semantics.catalog import CatalogEntity, build_entities, plan_sync
 
 RELATIONS = [
     {
