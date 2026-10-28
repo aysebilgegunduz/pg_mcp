@@ -8,7 +8,7 @@ dependencies = [
     "mcp>=1.9.2",
     "psycopg[c]>=3.2.8",
     "humanize>=4.8.0",
-    "pglast==7.2.0",
+    "pglast>=7.21,<8",
     "attrs>=25.3.0",
     "psycopg-pool>=3.2.6",
     "pyjwt[crypto]>=2.12.1",
@@ -114,6 +114,5 @@ constraint-dependencies = [
     "cryptography>=46.0.6",     # BDSA-2026-5640
     "python-multipart>=0.0.22", # CVE-2026-24486 (via mcp)
     "requests>=2.33.1",         # Stay current (via docker/instructor)
-    "setuptools>=82.0.0",       # GHSA-58pv-8j8x-9vj2, GHSA-8rrh-rw8j-w5fx (via pglast)
     "urllib3>=2.6.3",           # CVE-2026-21441 (via docker/requests)
 ]
