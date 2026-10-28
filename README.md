@@ -707,33 +707,6 @@ Golden queries are parameterized SQL such as `SELECT * FROM sales.customers WHER
 - Redirects are not followed, responses are validated (count, dimensions, finite values), and transient failures (HTTP 429/5xx, network errors) are retried with backoff.
 - **Data sent to the provider:** schema metadata (object names, types, comments), golden query descriptions and search queries. Table *data* is never sent. Use a self-hosted provider if this metadata must not leave your network.
 
-### Migrating from AIDB
-
-Earlier versions used EDB's proprietary AIDB extension, and with it AIDB's names: "semantic knowledge base" and "semantic alias". Those features are now **knowledge maps** and **golden queries**, and the tools are renamed accordingly:
-
-| Previous tool | New tool |
-| ------------- | -------- |
-| *(SQL: `aidb.create_semantic_kb`)* | `create_knowledge_map` |
-| *(SQL: `aidb.delete_semantic_kb`)* | `delete_knowledge_map` |
-| `search_kb` | `search_knowledge_map` |
-| `list_kbs` | `list_knowledge_maps` |
-| `get_kb_stats` | `get_knowledge_map_stats` |
-| `refresh_kb` | `refresh_knowledge_map` |
-| `create_alias` | `create_golden_query` |
-| `delete_alias` | `delete_golden_query` |
-| `search_aliases` | `search_golden_queries` |
-| `execute_alias` | `execute_golden_query` |
-| `list_aliases` | `list_golden_queries` |
-| `discover_context` | `discover_context` *(unchanged)* |
-
-Other changes to be aware of:
-
-- The `kb_name` parameter is now `map_name`. In `discover_context`, `include_aliases` is now `include_golden_queries`, and the `existing_aliases` result field is now `golden_queries`. Results otherwise keep their fields, and some gain extras such as `parameters` or `dimensions`.
-- `ALLOW_ALIAS_WRITE_IN_RESTRICTED` is replaced by `ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED`. The old variable is ignored (with a warning at startup), so golden query writes stay blocked in restricted mode until the new one is set.
-- Golden queries must be read-only `SELECT` queries (see the safeguards above).
-- Knowledge maps are only synchronised by `refresh_knowledge_map`. There is no AIDB-style live mode, and `auto_processing` is always reported as `Disabled`.
-- Existing AIDB knowledge bases and aliases are not migrated. After upgrading, configure an embedding provider, then recreate them with `create_knowledge_map` and `create_golden_query`.
-
 ## Usage Examples
 
 ### Get Database Health Overview
