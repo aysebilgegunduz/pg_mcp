@@ -660,19 +660,19 @@ class SafeSqlDriver(SqlDriver):
         "first_value",
         "last_value",
         "nth_value",
-        # AIDB Semantic KB Functions
-        "aidb.get_entity_definitions",
-        "aidb.get_metadata",
-        "aidb.list_semantic_kbs",
-        "aidb.refresh_semantic_kb",
-        "aidb.semantic_kb_stats",
-        # AIDB Semantic Alias Functions (read/execute only; writes go through
-        # dedicated tools gated by ALLOW_ALIAS_WRITE_IN_RESTRICTED)
-        "aidb.alias_param",
-        "aidb.alias_params",
-        "aidb.execute_semantic_alias",
-        "aidb.get_semantic_aliases",
-        "aidb.search_semantic_aliases",
+        # pgvector Functions (pure, read-only)
+        "l2_distance",
+        "inner_product",
+        "cosine_distance",
+        "l1_distance",
+        "hamming_distance",
+        "jaccard_distance",
+        "vector_dims",
+        "vector_norm",
+        "l2_norm",
+        "l2_normalize",
+        "binary_quantize",
+        "subvector",
     }
 
     ALLOWED_NODE_TYPES: ClassVar[set[type]] = ALLOWED_STMT_TYPES | {
@@ -1051,6 +1051,17 @@ class SafeSqlDriver(SqlDriver):
                 force_readonly=True,
             )
 
+    def transaction(self, *, readonly: bool = False):  # type: ignore[override]
+        """Not available: it would hand out a connection that bypasses validation.
+
+        Validate statements with validate_sql() and open the transaction on the
+        underlying driver explicitly instead.
+        """
+        raise ValueError(
+            "SafeSqlDriver does not provide transactions; validate statements with "
+            "validate_sql() and use the underlying driver"
+        )
+
     @staticmethod
     def sql_to_query(sql: Composable) -> str:
         """Convert a SQL string to a query string."""
@@ -1112,11 +1123,17 @@ ALLOW_COMMENT_IN_RESTRICTED = (
     os.getenv("ALLOW_COMMENT_IN_RESTRICTED", "true").lower() == "true"
 )
 
-# Environment-controlled flag (default false) for allowing semantic alias
+# Environment-controlled flag (default false) for allowing golden query
 # write operations (create/delete) in restricted mode
-ALLOW_ALIAS_WRITE_IN_RESTRICTED = (
-    os.getenv("ALLOW_ALIAS_WRITE_IN_RESTRICTED", "false").lower() == "true"
+ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED = (
+    os.getenv("ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED", "false").lower() == "true"
 )
+if os.getenv("ALLOW_ALIAS_WRITE_IN_RESTRICTED") is not None:
+    # Renamed; the old name is ignored so writes stay blocked (fail closed).
+    logger.warning(
+        "ALLOW_ALIAS_WRITE_IN_RESTRICTED is no longer supported and is ignored; "
+        "use ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED"
+    )
 
 # Metadata allowlist (extendable for future operations)
 SAFE_METADATA_ALLOWLIST: dict[str, bool] = {

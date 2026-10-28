@@ -847,6 +847,7 @@ version = "1.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "attrs" },
+    { name = "httpx" },
     { name = "humanize" },
     { name = "instructor" },
     { name = "mcp" },
@@ -870,6 +871,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "attrs", specifier = ">=25.3.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "humanize", specifier = ">=4.8.0" },
     { name = "instructor", specifier = ">=1.7.9" },
     { name = "mcp", specifier = ">=1.9.2" },

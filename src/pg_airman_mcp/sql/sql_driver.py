@@ -3,10 +3,13 @@
 import contextvars
 import logging
 import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, LiteralString
+from typing import Any, LiteralString, cast
 from urllib.parse import urlparse, urlunparse
 
+from psycopg import AsyncConnection
 from psycopg import sql as psycopg_sql
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
@@ -237,26 +240,67 @@ class SqlDriver:
 
             raise e
 
+    @asynccontextmanager
+    async def transaction(
+        self, *, readonly: bool = False
+    ) -> AsyncIterator[AsyncConnection]:
+        """Run several statements atomically on a single connection.
+
+        Yields a connection inside a transaction that is committed when the
+        block exits normally and rolled back if it raises. With
+        ``readonly=True`` the transaction is ``READ ONLY``, so PostgreSQL
+        rejects any write. Transaction-scoped settings (``SET LOCAL``) never
+        leak to other users of a pooled connection.
+        """
+        if self.conn is None:
+            self.connect()
+            if self.conn is None:
+                raise ValueError("Connection not established")
+
+        if self.is_pool:
+            pool = await self.conn.pool_connect()
+            async with pool.connection() as connection:
+                async with self._transaction_on(connection, readonly):
+                    yield connection
+        else:
+            connection = cast(AsyncConnection, self.conn)
+            async with self._transaction_on(connection, readonly):
+                yield connection
+
+    @asynccontextmanager
+    async def _transaction_on(
+        self, connection: AsyncConnection, readonly: bool
+    ) -> AsyncIterator[None]:
+        await self._apply_tracing(connection)
+        async with connection.transaction():
+            if readonly:
+                await connection.execute("SET TRANSACTION READ ONLY")
+            yield
+
+    @staticmethod
+    async def _apply_tracing(connection) -> None:
+        # Inject SET application_name outside any transaction so it
+        # persists as a true session-level setting. SET inside a
+        # transaction is reverted by ROLLBACK, which defeats
+        # persistence on idle connections in pg_stat_activity.
+        # Uses autocommit to avoid psycopg's implicit transaction.
+        app_name = tracing_application_name.get()
+        if app_name is not None:
+            await connection.set_autocommit(True)
+            await connection.execute(
+                psycopg_sql.SQL("SET application_name = {}").format(
+                    psycopg_sql.Literal(app_name)
+                )
+            )
+            await connection.set_autocommit(False)
+
     async def _execute_with_connection(
         self, connection, query, params, force_readonly
     ) -> list[RowResult] | None:
         """Execute query with the given connection."""
         transaction_started = False
         try:
-            # Inject SET application_name outside any transaction so it
-            # persists as a true session-level setting. SET inside a
-            # transaction is reverted by ROLLBACK, which defeats
-            # persistence on idle connections in pg_stat_activity.
-            # Uses autocommit to avoid psycopg's implicit transaction.
-            app_name = tracing_application_name.get()
-            if app_name is not None:
-                await connection.set_autocommit(True)
-                await connection.execute(
-                    psycopg_sql.SQL("SET application_name = {}").format(
-                        psycopg_sql.Literal(app_name)
-                    )
-                )
-                await connection.set_autocommit(False)
+            await self._apply_tracing(connection)
 
             async with connection.cursor(row_factory=dict_row) as cursor:
                 # Start read-only transaction
