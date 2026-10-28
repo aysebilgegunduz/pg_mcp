@@ -73,16 +73,16 @@ docker build -t pgpacer .
 If you have `pipx` installed you can install pgpacer with:
 
 ```bash
-pipx install git+https://github.com/aysebilgegunduz/pgpacer.git
+pipx install pgpacer
 ```
 
 Otherwise, install pgpacer with `uv`:
 
 ```bash
-uv pip install git+https://github.com/aysebilgegunduz/pgpacer.git
+uv pip install pgpacer
 ```
 
-Either way, the command is `pgpacer`. The package is not published on PyPI yet, so install it from this repository for now.
+Either way, the command is `pgpacer`. To try unreleased changes, install from this repository instead: `pipx install git+https://github.com/aysebilgegunduz/pgpacer.git`.
 
 If you need to install `uv`, see the [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
 
