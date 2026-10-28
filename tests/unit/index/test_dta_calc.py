@@ -1,12 +1,13 @@
 import asyncio
 import json
 from logging import getLogger
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from pglast import parse_sql
+from pglast.ast import SelectStmt
 
 from pg_airman_mcp.artifacts import ExplainPlanArtifact
 from pg_airman_mcp.index.dta_calc import (
@@ -1184,7 +1185,7 @@ async def test_enumerate_greedy_pareto_cost_benefit(async_sql_driver):
 
     # Create test queries
     q1 = "SELECT * FROM test_table WHERE col1 = 1"
-    queries = [(q1, parse_sql(q1)[0].stmt, 1.0)]
+    queries = [(q1, cast(SelectStmt, parse_sql(q1)[0].stmt), 1.0)]
 
     # Create candidate indexes
     candidate_indexes = set()

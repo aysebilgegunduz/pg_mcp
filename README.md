@@ -16,6 +16,7 @@ Features include:
 - **⚡ Index Tuning** - explore thousands of possible indexes to find the best solution for your workload, using industrial-strength algorithms.
 - **📈 Query Plans** - validate and optimize performance by reviewing EXPLAIN plans and simulating the impact of hypothetical indexes.
 - **🧠 Schema Intelligence** - context-aware SQL generation based on detailed understanding of the database schema.
+- **🔎 Semantic Search** - knowledge maps for natural-language discovery of tables and columns, and golden queries (vetted, reusable business SQL), stored with the open-source [pgvector](https://github.com/pgvector/pgvector) extension.
 - **🛡️ Safe SQL Execution** - configurable access control, including support for read-only mode and safe SQL parsing, making it usable for both development and production.
 - **🔐 OAuth 2.0 Authentication** - optional token-based authentication supporting both RFC 7662 token introspection and local JWT validation (RS256, ES256), protecting all MCP tools with bearer tokens.
 
@@ -211,23 +212,23 @@ COMMENT ON <KIND> <qualified_identifier> length=<N> in restricted mode
 
 If disabled you will receive an error: `COMMENT ON is not permitted in restricted mode`.
 
-### Semantic Alias Writes (Allowlist)
+### Golden Query Writes (Allowlist)
 
-Similarly, semantic alias write operations (`create_alias`, `delete_alias`) can be permitted in restricted mode via:
+Similarly, golden query write operations (`create_golden_query`, `delete_golden_query`) can be permitted in restricted mode via:
 
 ```bash
-ALLOW_ALIAS_WRITE_IN_RESTRICTED=false   # default: false
+ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED=false   # default: false
 ```
 
-Set this variable to `true` to allow creating and deleting semantic aliases when running with `--access-mode=restricted`. When enabled, alias write operations bypass `SafeSqlDriver` and use the underlying driver directly (same pattern as comment writes). Read-only alias operations (`search_aliases`, `execute_alias`, `list_aliases`) are always allowed regardless of this flag.
+Set this variable to `true` to allow creating and deleting golden queries when running with `--access-mode=restricted`. When enabled, golden query write operations bypass `SafeSqlDriver` and use the underlying driver directly (same pattern as comment writes). The query itself must still pass restricted-mode validation. Read-only operations (`search_golden_queries`, `execute_golden_query`, `list_golden_queries`) are always allowed regardless of this flag.
 
-When an alias write occurs in restricted mode the server logs:
+When a golden query write occurs in restricted mode the server logs:
 
 ```text
-Alias write in restricted mode (ALLOW_ALIAS_WRITE_IN_RESTRICTED=true)
+Golden query write in restricted mode (ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED=true)
 ```
 
-If disabled you will receive an error: `Semantic alias writes are not permitted in restricted mode`.
+If disabled you will receive an error: `Golden query writes are not permitted in restricted mode`.
 
 #### Other MCP Clients
 
@@ -501,7 +502,7 @@ The server URL is auto-detected from the host and port configuration for SSE and
 - **JWKS caching** (JWT): Public keys are cached with a configurable TTL (default: 5 minutes) and rate-limited refresh on unknown key IDs.
 - **RFC 8707 resource validation**: Optionally validates that the token's resource claim matches the MCP server URL.
 - **Scope validation**: Requires tokens to have the configured scopes (default: `mcp:postgres:access`).
-- **Semantic alias role switching**: The `execute_alias` tool accepts an optional `execute_as_role` parameter that is passed to AIDB. Role switching requires the connecting database user to have `SET ROLE` privileges for the target role. The parameter is SQL-injection safe (parameterized), but operators should ensure proper database grants to control which roles can be assumed.
+- **Golden query role switching**: The `execute_golden_query` tool accepts an optional `execute_as_role` parameter, applied with `SET LOCAL ROLE` so it lasts only for that query's transaction and never leaks to pooled connections. The connecting database user must be a member of the target role. The role name is quoted as an identifier (SQL-injection safe), but operators should ensure proper database grants to control which roles can be assumed. See [Knowledge Maps and Golden Queries](#knowledge-maps-and-golden-queries-pgvector) for the other golden query safeguards.
 
 ## Governance
 
@@ -613,6 +614,114 @@ If you are managing your own Postgres installation, you may need to do additiona
 Before loading the `pg_stat_statements` extension you must ensure that it is listed in the `shared_preload_libraries` in the Postgres configuration file.
 The `hypopg` extension may also require additional system-level installation (e.g., via your package manager) because it does not always ship with Postgres.
 
+## Knowledge Maps and Golden Queries (pgvector)
+
+These tools help an agent write correct SQL against an unfamiliar database:
+
+- A **knowledge map** is a searchable map of your tables, views and columns. The agent can find the right objects by meaning ("where are customer emails?").
+- A **golden query** is vetted, reusable business SQL ("monthly revenue", "customer by email") that the agent can discover and run instead of writing its own.
+
+Vectors are stored and compared with the open-source [pgvector](https://github.com/pgvector/pgvector) extension; no proprietary extension is required. pgvector stores vectors but does not create them, so **Pg Airman MCP computes embeddings itself** using a configured embedding provider.
+
+### Requirements
+
+1. The pgvector extension installed in your database (`CREATE EXTENSION vector;`). Tested with pgvector 0.8.
+2. An embedding provider configured on the server (see below). Without one, the semantic search tools return a configuration error and every other tool keeps working.
+
+### Embedding Providers
+
+| Provider | Use for | Notes |
+| -------- | ------- | ----- |
+| `openai` | Production | Any service implementing the OpenAI `POST /embeddings` API: OpenAI, Ollama, vLLM, Hugging Face Text Embeddings Inference (TEI), LM Studio, LiteLLM (for Azure, Bedrock, Vertex AI, ...). |
+| `hash` | Tests, offline / air-gapped use | Built-in and deterministic, with no network access. It matches on shared words and identifiers only, not meaning. |
+
+```bash
+# OpenAI
+AIRMAN_MCP_EMBEDDING_PROVIDER=openai
+AIRMAN_MCP_EMBEDDING_MODEL=text-embedding-3-small
+AIRMAN_MCP_EMBEDDING_API_KEY=sk-...
+
+# Self-hosted Ollama (no API key needed)
+AIRMAN_MCP_EMBEDDING_PROVIDER=openai
+AIRMAN_MCP_EMBEDDING_MODEL=nomic-embed-text
+AIRMAN_MCP_EMBEDDING_BASE_URL=http://localhost:11434/v1
+
+# Hugging Face TEI running as a sibling container
+AIRMAN_MCP_EMBEDDING_PROVIDER=openai
+AIRMAN_MCP_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+AIRMAN_MCP_EMBEDDING_BASE_URL=http://tei:80/v1
+```
+
+Each knowledge map records the model and vector size it was built with. Searching with a different model is rejected, because vectors from different models are not comparable. To switch models, recreate the knowledge map.
+
+### Typical Workflow
+
+1. `create_knowledge_map` with a name and the schemas to index (unrestricted mode). Table, view and column names, types, constraints and **comments** are embedded, so good `COMMENT ON` descriptions (see `add_comment_to_object`) directly improve search quality.
+2. `search_knowledge_map` / `discover_context` to find relevant schema elements for a question.
+3. `create_golden_query` to save vetted, parameterized business SQL; `search_golden_queries` and `execute_golden_query` to reuse it.
+4. After schema changes, `get_knowledge_map_stats` reports how many entities are `pending`, and `refresh_knowledge_map` re-embeds only what changed. Knowledge maps are not updated automatically.
+
+### Storage and Permissions
+
+On the first `create_knowledge_map`, the server creates an `airman_semantic` schema with three tables (`knowledge_maps`, `knowledge_map_entries`, `golden_queries`). The DDL is in [`src/pg_airman_mcp/semantics/schema.sql`](src/pg_airman_mcp/semantics/schema.sql). DBAs who prefer to provision it themselves can run that script; every statement is idempotent, and the server then needs no `CREATE` privilege.
+
+A restricted-mode server can use a read-only role:
+
+```sql
+GRANT USAGE ON SCHEMA airman_semantic TO mcp_readonly;
+GRANT SELECT ON ALL TABLES IN SCHEMA airman_semantic TO mcp_readonly;
+```
+
+| Operation | Unrestricted | Restricted |
+| --------- | ------------ | ---------- |
+| `search_knowledge_map`, `list_knowledge_maps`, `get_knowledge_map_stats`, `discover_context`, `search_golden_queries`, `list_golden_queries`, `execute_golden_query` | ✅ | ✅ |
+| `create_knowledge_map`, `refresh_knowledge_map`, `delete_knowledge_map` | ✅ | ❌ |
+| `create_golden_query`, `delete_golden_query` | ✅ | Only with `ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED=true` |
+
+### Golden Query Safeguards
+
+Golden queries are parameterized SQL such as `SELECT * FROM sales.customers WHERE email = ${email}`. They are hardened as follows:
+
+- **Bound parameters, never interpolation.** Each `${name}` compiles to a typed bind parameter (for example `($1::text)`), so values are sent separately from the SQL and parsed by PostgreSQL's own type input functions. `param_type` must come from a fixed allowlist: `text`, `varchar`, `integer`, `bigint`, `smallint`, `numeric`, `real`, `double precision`, `boolean`, `date`, `timestamp`, `timestamptz`, `time`, `interval`, `uuid`, `json`, `jsonb`, or a scalar type followed by `[]`.
+- **Read-only SQL only.** The query must be a single `SELECT` (including `WITH ... SELECT` and `VALUES`). Data-modifying CTEs, `SELECT INTO`, row locks (`FOR UPDATE`) and multiple statements are rejected. This check runs when the golden query is created **and every time it runs**, so a row edited directly in the database cannot smuggle in a write.
+- **READ ONLY transaction.** Execution runs inside `SET TRANSACTION READ ONLY`, so PostgreSQL itself blocks writes, including side effects such as `nextval()`.
+- **Restricted mode.** The SQL must also pass the same `SafeSqlDriver` validation as `execute_sql`, including its function allowlist, and it runs with a server-side `statement_timeout`.
+- **No privilege escalation.** Golden queries run with the caller's privileges (or `execute_as_role`), never with those of their author.
+
+### Embedding Service Security
+
+- The API key is read from `AIRMAN_MCP_EMBEDDING_API_KEY` only (no CLI flag, so it never appears in process listings) and is never logged.
+- The server refuses to send an API key over plain `http://` to anything other than `localhost`. Keyless `http://` endpoints (for example an internal Ollama or TEI container) are allowed with a warning, since schema metadata is then sent unencrypted.
+- Redirects are not followed, responses are validated (count, dimensions, finite values), and transient failures (HTTP 429/5xx, network errors) are retried with backoff.
+- **Data sent to the provider:** schema metadata (object names, types, comments), golden query descriptions and search queries. Table *data* is never sent. Use a self-hosted provider if this metadata must not leave your network.
+
+### Migrating from AIDB
+
+Earlier versions used EDB's proprietary AIDB extension, and with it AIDB's names: "semantic knowledge base" and "semantic alias". Those features are now **knowledge maps** and **golden queries**, and the tools are renamed accordingly:
+
+| Previous tool | New tool |
+| ------------- | -------- |
+| *(SQL: `aidb.create_semantic_kb`)* | `create_knowledge_map` |
+| *(SQL: `aidb.delete_semantic_kb`)* | `delete_knowledge_map` |
+| `search_kb` | `search_knowledge_map` |
+| `list_kbs` | `list_knowledge_maps` |
+| `get_kb_stats` | `get_knowledge_map_stats` |
+| `refresh_kb` | `refresh_knowledge_map` |
+| `create_alias` | `create_golden_query` |
+| `delete_alias` | `delete_golden_query` |
+| `search_aliases` | `search_golden_queries` |
+| `execute_alias` | `execute_golden_query` |
+| `list_aliases` | `list_golden_queries` |
+| `discover_context` | `discover_context` *(unchanged)* |
+
+Other changes to be aware of:
+
+- The `kb_name` parameter is now `map_name`. In `discover_context`, `include_aliases` is now `include_golden_queries`, and the `existing_aliases` result field is now `golden_queries`. Results otherwise keep their fields, and some gain extras such as `parameters` or `dimensions`.
+- `ALLOW_ALIAS_WRITE_IN_RESTRICTED` is replaced by `ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED`. The old variable is ignored (with a warning at startup), so golden query writes stay blocked in restricted mode until the new one is set.
+- Golden queries must be read-only `SELECT` queries (see the safeguards above).
+- Knowledge maps are only synchronised by `refresh_knowledge_map`. There is no AIDB-style live mode, and `auto_processing` is always reported as `Disabled`.
+- Existing AIDB knowledge bases and aliases are not migrated. After upgrading, configure an embedding provider, then recreate them with `create_knowledge_map` and `create_golden_query`.
+
 ## Usage Examples
 
 ### Get Database Health Overview
@@ -663,16 +772,18 @@ Pg Airman MCP Tools:
 | `analyze_db_health` | Performs comprehensive health checks including: buffer cache hit rates, connection health, constraint validation, index health (duplicate/unused/invalid), sequence limits, and vacuum health. |
 | `add_comment_to_object` | Adds a comment to a table, view, or column (allowed in restricted mode only if `ALLOW_COMMENT_IN_RESTRICTED=true`). |
 | `remove_comment` | Remove the comment from a table, view, or column. |
-| `search_kb` | Search the semantic knowledge base for tables/columns matching a natural language query. |
-| `list_kbs` | List all available semantic knowledge bases. |
-| `get_kb_stats` | Get statistics about a semantic knowledge base (entity counts, pending updates). |
-| `refresh_kb` | Refresh semantic KB to sync with current schema metadata (unrestricted mode only). |
-| `create_alias` | Create a reusable semantic alias — a parameterized SQL query with semantic description for discovery. Requires `kb_name` to resolve the embedding model so the alias is searchable. Allowed in restricted mode only if `ALLOW_ALIAS_WRITE_IN_RESTRICTED=true`. |
-| `delete_alias` | Delete a semantic alias (allowed in restricted mode only if `ALLOW_ALIAS_WRITE_IN_RESTRICTED=true`). |
-| `search_aliases` | Search semantic aliases by natural language query using the embedding model from the given `kb_name`. |
-| `execute_alias` | Execute a semantic alias with parameter values. Supports optional `execute_as_role` for role-based access control (requires database grants). |
-| `list_aliases` | List all available semantic aliases with name, description, query text, and parameter count. |
-| `discover_context` | Discover schema metadata and existing aliases relevant to a business question in a single call (for SQL generation). Combines `search_kb` and `search_aliases` with configurable similarity threshold and result limits. |
+| `create_knowledge_map` | Create a knowledge map: embed the tables, views and columns of the given schemas for natural-language search (unrestricted mode only). |
+| `delete_knowledge_map` | Delete a knowledge map and its embeddings (unrestricted mode only). |
+| `search_knowledge_map` | Search a knowledge map for tables, views and columns matching a natural language query. |
+| `list_knowledge_maps` | List all available knowledge maps. |
+| `get_knowledge_map_stats` | Get statistics about a knowledge map (entity counts, and how many entities are pending a refresh). |
+| `refresh_knowledge_map` | Refresh a knowledge map to sync with current schema metadata, re-embedding only changed entities (unrestricted mode only). |
+| `create_golden_query` | Create a golden query: vetted, reusable business SQL (a parameterized read-only SELECT) with a description for discovery. Requires `map_name` to select the embedding model so the query is searchable. Allowed in restricted mode only if `ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED=true`. |
+| `delete_golden_query` | Delete a golden query (allowed in restricted mode only if `ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED=true`). |
+| `search_golden_queries` | Search golden queries by natural language query using the embedding model of the given `map_name`. |
+| `execute_golden_query` | Execute a golden query with parameter values in a read-only transaction. Supports optional `execute_as_role` for role-based access control (requires database grants). |
+| `list_golden_queries` | List all available golden queries with name, description, query text, parameters, and parameter count. |
+| `discover_context` | Discover schema metadata and golden queries relevant to a business question in a single call (for SQL generation). Combines `search_knowledge_map` and `search_golden_queries` with configurable similarity threshold and result limits. |
 
 ## Frequently Asked Questions
 
@@ -698,14 +809,15 @@ We are building out a suite of AI-generated adversarial workloads designed to ch
 Our testing presently focuses on Postgres 15, 16, 17, and 18.
 We plan to support Postgres versions 14 through 18.
 
-*How do I run AIDB integration tests?*
-Integration tests for semantic KB and alias features require a running PostgreSQL instance with the AIDB extension.
-By default, tests connect to `postgresql://postgres@localhost:28816/aidb`.
-Override this by setting the `AIDB_TEST_DSN` environment variable:
+*How do I run the knowledge map and golden query integration tests?*
+They run with the rest of the suite and start a `pgvector/pgvector` container automatically (Docker required).
+They use the built-in `hash` embedding provider, so no embedding service or API key is needed.
+To use an existing database instead, point `PGVECTOR_TEST_DSN` at one where the test user can create extensions and roles.
+`PGVECTOR_TEST_IMAGE` overrides the container image:
 
 ```bash
-export AIDB_TEST_DSN="postgresql://myuser@localhost:28816/aidb"
-SKIP_AIDB_TESTS=0 uv run pytest tests/integration/semantics/ -v
+uv run pytest tests/integration/semantics/ -v
+PGVECTOR_TEST_DSN="postgresql://postgres@localhost:5432/postgres" uv run pytest tests/integration/semantics/ -v
 ```
 
 *Who created this project?*
@@ -764,12 +876,24 @@ Environment variables use the `AIRMAN_MCP_` prefix.
 | `AIRMAN_MCP_JWT_JWKS_CACHE_TTL` | `--jwt-jwks-cache-ttl` | JWKS cache TTL in seconds | `300` |
 | `AIRMAN_MCP_SERVER_URL` | *(env only)* | This server's URL (required for stdio with auth) | *(auto-detected for SSE/HTTP)* |
 
+### Semantic Search Settings
+
+| Variable | CLI Argument | Description | Default |
+| -------- | ------------ | ----------- | ------- |
+| `AIRMAN_MCP_EMBEDDING_PROVIDER` | `--embedding-provider` | Embedding provider: `openai` (any OpenAI-compatible API) or `hash` (offline, lexical) | *(none: semantic search disabled)* |
+| `AIRMAN_MCP_EMBEDDING_MODEL` | `--embedding-model` | Embedding model name (required for `openai`) | *(none)* |
+| `AIRMAN_MCP_EMBEDDING_BASE_URL` | `--embedding-base-url` | OpenAI-compatible API base URL | `https://api.openai.com/v1` |
+| `AIRMAN_MCP_EMBEDDING_API_KEY` | *(env only)* | API key for the embedding service | *(none)* |
+| `AIRMAN_MCP_EMBEDDING_DIMENSIONS` | `--embedding-dimensions` | Vector size to request (e.g. for `text-embedding-3-*`); `hash` defaults to 512 | *(model native)* |
+| `AIRMAN_MCP_EMBEDDING_TIMEOUT` | *(env only)* | Embedding request timeout in seconds | `30` |
+| `AIRMAN_MCP_EMBEDDING_BATCH_SIZE` | *(env only)* | Maximum texts per embedding request | `32` |
+
 ### Other Settings
 
 | Variable | Description | Default |
 | -------- | ----------- | ------- |
 | `ALLOW_COMMENT_IN_RESTRICTED` | Allow `COMMENT ON` writes in restricted mode | `true` |
-| `ALLOW_ALIAS_WRITE_IN_RESTRICTED` | Allow semantic alias create/delete in restricted mode | `false` |
+| `ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED` | Allow golden query create/delete in restricted mode | `false` |
 | `OPENAI_API_KEY` | OpenAI API key for experimental LLM-based index tuning | *(none)* |
 
 ## Technical Notes

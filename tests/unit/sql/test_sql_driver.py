@@ -1,9 +1,13 @@
 # ruff: noqa: B017
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
+import psycopg
 import pytest
+from psycopg_pool import PoolTimeout
 
 from pg_airman_mcp.sql import DbConnPool, SqlDriver
+from pg_airman_mcp.sql.sql_driver import is_connection_failure
 
 
 class AsyncContextManagerMock(AsyncMock):
@@ -332,28 +336,96 @@ async def test_execute_query_from_pool(mock_db_pool):
     assert result[1].cells["name"] == "test2"
 
 
+CONNECTION_FAILURES = [
+    psycopg.OperationalError("server closed the connection unexpectedly"),
+    psycopg.errors.ConnectionFailure("connection failure"),
+    psycopg.errors.AdminShutdown("terminating connection due to administrator"),
+    PoolTimeout("couldn't get a connection after 30.00 sec"),
+]
+SQL_ERRORS = [
+    psycopg.errors.SyntaxError('syntax error at or near "SELEC"'),
+    psycopg.errors.UndefinedTable('relation "nope" does not exist'),
+    psycopg.errors.InsufficientPrivilege("permission denied for table t"),
+    psycopg.errors.UniqueViolation("duplicate key value violates unique constraint"),
+    psycopg.errors.QueryCanceled("canceling statement due to statement timeout"),
+    psycopg.errors.LockNotAvailable("could not obtain lock on relation t"),
+    ValueError("not a database error"),
+]
+
+
+def healthy_db_pool():
+    """A valid DbConnPool stand-in whose pool hands out connections normally.
+
+    The shared fixtures above use AsyncMock-based context managers whose
+    auto-mocked __aexit__ swallows exceptions, so error paths need this.
+    """
+
+    @asynccontextmanager
+    async def connection_cm():
+        yield MagicMock()
+
+    pool = MagicMock()
+    pool.connection = MagicMock(side_effect=lambda: connection_cm())
+    db_pool = MagicMock(spec=DbConnPool)
+    db_pool.pool_connect = AsyncMock(return_value=pool)
+    db_pool._is_valid = True
+    db_pool._last_error = None
+    return db_pool
+
+
+async def run_failing_query(driver, error):
+    with patch.object(
+        SqlDriver, "_execute_with_connection", AsyncMock(side_effect=error)
+    ):
+        with pytest.raises(type(error)):
+            await driver.execute_query("SELECT * FROM test")
+
+
+@pytest.mark.parametrize("error", CONNECTION_FAILURES, ids=lambda e: type(e).__name__)
 @pytest.mark.asyncio
-async def test_connection_error_marks_pool_invalid(mock_db_pool):
-    """Test that connection errors mark the pool as invalid."""
-    db_pool, connection, cursor = mock_db_pool
+async def test_connection_failure_marks_pool_invalid(error):
+    """A broken connection invalidates the pool so the next call rebuilds it."""
+    db_pool = healthy_db_pool()
 
-    # Configure pool_connect to raise an exception
-    db_pool.pool_connect.side_effect = Exception("Connection failed")
+    await run_failing_query(SqlDriver(conn=db_pool), error)
 
-    # Create SqlDriver with the mocked pool
-    driver = SqlDriver(conn=db_pool)
-
-    # Execute a query that will fail due to connection error
-    with pytest.raises(Exception):
-        await driver.execute_query("SELECT * FROM test")
-
-    # Make pool invalid manually (since we're bypassing the actual method)
-    db_pool._is_valid = False
-    db_pool._last_error = "Connection failed"
-
-    # Verify pool was marked as invalid
     assert db_pool._is_valid is False
-    assert isinstance(db_pool._last_error, str)
+    assert db_pool._last_error == str(error)
+
+
+@pytest.mark.parametrize("error", SQL_ERRORS, ids=lambda e: type(e).__name__)
+@pytest.mark.asyncio
+async def test_sql_error_keeps_pool_valid(error):
+    """Ordinary SQL errors must not tear down a pool other queries are using."""
+    db_pool = healthy_db_pool()
+
+    await run_failing_query(SqlDriver(conn=db_pool), error)
+
+    assert db_pool._is_valid is True
+    assert db_pool._last_error is None
+
+
+@pytest.mark.parametrize(
+    ("error", "dropped"),
+    [(CONNECTION_FAILURES[0], True), (SQL_ERRORS[0], False)],
+    ids=["connection-failure", "sql-error"],
+)
+@pytest.mark.asyncio
+async def test_direct_connection_dropped_only_on_connection_failure(error, dropped):
+    driver = SqlDriver(conn=MagicMock())
+
+    await run_failing_query(driver, error)
+
+    assert (driver.conn is None) is dropped
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [*((e, True) for e in CONNECTION_FAILURES), *((e, False) for e in SQL_ERRORS)],
+    ids=lambda v: type(v).__name__ if isinstance(v, BaseException) else str(v),
+)
+def test_is_connection_failure(error, expected):
+    assert is_connection_failure(error) is expected
 
 
 @pytest.mark.asyncio

@@ -3,167 +3,144 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from fake_driver import FakeDriver, rows
 
 from pg_airman_mcp.semantics.discovery_tools import discover_schema_for_question
+from pg_airman_mcp.semantics.embeddings import HashEmbeddingProvider
+
+MAP_ROW = {
+    "name": "my_map",
+    "model_name": "airman-hash-v1",
+    "dimensions": 64,
+    "schemas": ["public"],
+    "refreshed_at": None,
+}
+TABLE_MATCH = {
+    "schema_name": "public",
+    "relation_name": "orders",
+    "column_name": None,
+    "entity_type": "Table",
+    "definition": "Table public.orders",
+    "comment": "Customer orders table",
+    "similarity": 0.85,
+}
+GOLDEN_MATCH = {
+    "name": "monthly_revenue",
+    "description": "Revenue per month",
+    "query_text": "SELECT SUM(total) FROM orders GROUP BY month",
+    "parameters": [],
+    "similarity": 0.78,
+}
 
 
-class MockRow:
-    def __init__(self, data):
-        self.cells = data
-
-
-class MockSqlDriver:
-    def __init__(self):
-        self.execute_query = AsyncMock(return_value=[])
+def routing_driver(map_matches, golden_query_matches) -> FakeDriver:
+    return FakeDriver(
+        [
+            ("to_regclass", rows({"installed": True})),
+            ("FROM airman_semantic.knowledge_maps", rows(MAP_ROW)),
+            ("airman_semantic.knowledge_map_entries e", rows(*map_matches)),
+            ("airman_semantic.golden_queries a", rows(*golden_query_matches)),
+        ]
+    )
 
 
 @pytest.fixture
-def mock_sql_driver():
-    return MockSqlDriver()
-
-
-# ======================
-# discover_schema_for_question
-# ======================
+def embedder():
+    provider = HashEmbeddingProvider(dimensions=64)
+    provider.embed = AsyncMock(wraps=provider.embed)
+    return provider
 
 
 @pytest.mark.asyncio
-async def test_discover_returns_both_metadata_and_aliases(mock_sql_driver):
-    """Test that discovery returns both schema metadata and aliases."""
-    mock_sql_driver.execute_query.side_effect = [
-        # search_semantic_kb call
-        [
-            MockRow(
-                {
-                    "schema_name": "public",
-                    "relation_name": "orders",
-                    "column_name": None,
-                    "entity_type": "Table",
-                    "definition": "CREATE TABLE orders ...",
-                    "comment": "Customer orders table",
-                    "similarity": 0.85,
-                }
-            ),
-        ],
-        # _resolve_model_name for search_semantic_aliases
-        [MockRow({"model_name": "my_model"})],
-        # search_semantic_aliases call
-        [
-            MockRow(
-                {
-                    "name": "monthly_revenue",
-                    "query_text": "SELECT SUM(total) FROM orders GROUP BY month",
-                    "similarity": 0.78,
-                }
-            ),
-        ],
-    ]
+async def test_discover_returns_both_metadata_and_golden_queries(embedder):
+    driver = routing_driver([TABLE_MATCH], [GOLDEN_MATCH])
 
     results = await discover_schema_for_question(
-        mock_sql_driver,
-        kb_name="my_kb",
-        question="how much revenue per month",
+        driver, embedder, map_name="my_map", question="how much revenue per month"
     )
 
-    assert len(results["schema_metadata"]) == 1
-    assert results["schema_metadata"][0]["relation_name"] == "orders"
-    assert len(results["existing_aliases"]) == 1
-    assert results["existing_aliases"][0]["name"] == "monthly_revenue"
+    assert results == {
+        "schema_metadata": [TABLE_MATCH],
+        "golden_queries": [GOLDEN_MATCH],
+    }
+    # The question is embedded once and reused for both searches.
+    assert embedder.embed.await_count == 1
+    map_vector = driver.params_matching("knowledge_map_entries e")[0][0]
+    golden_query_vector = driver.params_matching("golden_queries a")[0][0]
+    assert map_vector == golden_query_vector
 
 
 @pytest.mark.asyncio
-async def test_discover_without_aliases(mock_sql_driver):
-    """Test discovery with include_aliases=False skips alias search."""
-    mock_sql_driver.execute_query.side_effect = [
-        # search_semantic_kb call only
-        [
-            MockRow(
-                {
-                    "schema_name": "public",
-                    "relation_name": "customers",
-                    "column_name": None,
-                    "entity_type": "Table",
-                    "definition": "CREATE TABLE customers ...",
-                    "comment": "Customer info",
-                    "similarity": 0.9,
-                }
-            ),
-        ],
-    ]
+async def test_discover_without_golden_queries(embedder):
+    driver = routing_driver([TABLE_MATCH], [GOLDEN_MATCH])
 
     results = await discover_schema_for_question(
-        mock_sql_driver,
-        kb_name="my_kb",
+        driver,
+        embedder,
+        map_name="my_map",
         question="find customers",
-        include_aliases=False,
+        include_golden_queries=False,
     )
 
-    assert len(results["schema_metadata"]) == 1
-    assert results["existing_aliases"] == []
-    # Only one call (no alias search)
-    assert mock_sql_driver.execute_query.call_count == 1
+    assert results["schema_metadata"] == [TABLE_MATCH]
+    assert results["golden_queries"] == []
+    assert driver.params_matching("golden_queries a") == []
 
 
 @pytest.mark.asyncio
-async def test_discover_empty_results(mock_sql_driver):
-    """Test discovery when nothing matches."""
-    mock_sql_driver.execute_query.side_effect = [
-        # search_semantic_kb: no results
-        [],
-        # _resolve_model_name
-        [MockRow({"model_name": "my_model"})],
-        # search_semantic_aliases: no results
-        [],
-    ]
+async def test_discover_empty_results(embedder):
+    driver = routing_driver([], [])
 
     results = await discover_schema_for_question(
-        mock_sql_driver,
-        kb_name="my_kb",
-        question="quantum physics equations",
+        driver, embedder, map_name="my_map", question="quantum physics equations"
     )
 
-    assert results["schema_metadata"] == []
-    assert results["existing_aliases"] == []
+    assert results == {"schema_metadata": [], "golden_queries": []}
 
 
 @pytest.mark.asyncio
-async def test_discover_passes_similarity_and_limit(mock_sql_driver):
-    """Test that min_similarity and max_results are forwarded correctly."""
-    mock_sql_driver.execute_query.side_effect = [
-        [],  # search_semantic_kb
-        [MockRow({"model_name": "my_model"})],  # _resolve_model_name
-        [],  # search_semantic_aliases
-    ]
+async def test_discover_passes_similarity_and_limit(embedder):
+    driver = routing_driver([], [])
 
     await discover_schema_for_question(
-        mock_sql_driver,
-        kb_name="my_kb",
+        driver,
+        embedder,
+        map_name="my_map",
         question="test",
         min_similarity=0.3,
         max_results=5,
     )
 
-    # First call: search_semantic_kb
-    kb_call = mock_sql_driver.execute_query.call_args_list[0]
-    kb_params = kb_call[0][1]
-    assert kb_params[2] == 0.3  # min_similarity
-    assert kb_params[3] == 5  # limit
+    map_params = driver.params_matching("knowledge_map_entries e")[0]
+    assert map_params[-2:] == [0.3, 5]
+    golden_query_params = driver.params_matching("golden_queries a")[0]
+    assert golden_query_params[-2:] == [0.3, 5]
 
-    # Third call: search_semantic_aliases
-    alias_call = mock_sql_driver.execute_query.call_args_list[2]
-    alias_params = alias_call[0][1]
-    assert alias_params[2] == 0.3  # min_similarity
-    assert alias_params[3] == 5  # limit
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"min_similarity": 2.0}, "min_similarity"),
+        ({"max_results": 0}, "limit must be at least 1"),
+        ({"question": " "}, "query must not be empty"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_discover_validates_inputs(embedder, kwargs, message):
+    driver = routing_driver([], [])
+    args = {"map_name": "my_map", "question": "test"} | kwargs
+
+    with pytest.raises(ValueError, match=message):
+        await discover_schema_for_question(driver, embedder, **args)
+
+    assert driver.calls == []
 
 
 @pytest.mark.asyncio
-async def test_discover_propagates_kb_error(mock_sql_driver):
-    """Test that errors from search_semantic_kb propagate."""
-    mock_sql_driver.execute_query.side_effect = Exception("DB connection failed")
+async def test_discover_propagates_map_error(embedder):
+    driver = FakeDriver(error=Exception("DB connection failed"))
 
     with pytest.raises(Exception, match="DB connection failed"):
         await discover_schema_for_question(
-            mock_sql_driver,
-            kb_name="my_kb",
-            question="test",
+            driver, embedder, map_name="my_map", question="test"
         )

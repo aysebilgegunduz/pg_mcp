@@ -577,15 +577,17 @@ class TestToolRegistration:
                 "get_top_queries",
                 "add_comment_to_object",
                 "remove_comment",
-                "search_kb",
-                "list_kbs",
-                "get_kb_stats",
-                "refresh_kb",
-                "create_alias",
-                "delete_alias",
-                "search_aliases",
-                "execute_alias",
-                "list_aliases",
+                "create_knowledge_map",
+                "delete_knowledge_map",
+                "search_knowledge_map",
+                "list_knowledge_maps",
+                "get_knowledge_map_stats",
+                "refresh_knowledge_map",
+                "create_golden_query",
+                "delete_golden_query",
+                "search_golden_queries",
+                "execute_golden_query",
+                "list_golden_queries",
                 "discover_context",
             ]
 
@@ -669,7 +671,7 @@ class TestToolRegistration:
             create_mcp_server(auth_context=auth_ctx)
 
             # Should register same number of tools with auth
-            assert mock_instance.add_tool.call_count == 20
+            assert mock_instance.add_tool.call_count == 22
 
     def test_list_schemas_has_proper_signature(self):
         """Test list_schemas tool has expected parameters."""

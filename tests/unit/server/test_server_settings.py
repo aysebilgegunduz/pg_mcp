@@ -281,8 +281,8 @@ class TestCreateMcpServer:
             )
             assert server == mock_instance
 
-            # Should register 20 tools (execute_sql added separately in main)
-            assert mock_instance.add_tool.call_count == 20
+            # Should register 22 tools (execute_sql added separately in main)
+            assert mock_instance.add_tool.call_count == 22
 
     def test_creates_authenticated_server(self):
         """Test creating server with AuthContext."""
@@ -308,8 +308,8 @@ class TestCreateMcpServer:
             assert call_kwargs["token_verifier"] is mock_verifier
             assert call_kwargs["auth"] is mock_auth_settings
 
-            # Should register 20 tools (execute_sql added separately in main)
-            assert mock_instance.add_tool.call_count == 20
+            # Should register 22 tools (execute_sql added separately in main)
+            assert mock_instance.add_tool.call_count == 22
 
     def test_tool_registration_list(self):
         """Test that all expected tools are registered."""

@@ -1,4 +1,6 @@
 # ruff: noqa: B017
+import asyncio
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -226,3 +228,65 @@ async def test_connection_url_property():
     # Change the URL
     db_pool.connection_url = "postgresql://newuser:newpass@otherhost/otherdb"
     assert db_pool.connection_url == "postgresql://newuser:newpass@otherhost/otherdb"
+
+
+def fake_pool():
+    """A pool whose connection()/cursor() are real async context managers."""
+    cursor = AsyncMock()
+
+    @asynccontextmanager
+    async def cursor_cm():
+        yield cursor
+
+    connection = MagicMock()
+    connection.cursor = MagicMock(side_effect=lambda: cursor_cm())
+
+    @asynccontextmanager
+    async def connection_cm():
+        yield connection
+
+    async def slow_open():
+        await asyncio.sleep(0.01)  # yield so concurrent callers interleave
+
+    pool = MagicMock()
+    pool.connection = MagicMock(side_effect=lambda: connection_cm())
+    pool.open = AsyncMock(side_effect=slow_open)
+    pool.close = AsyncMock()
+    return pool
+
+
+@pytest.mark.asyncio
+async def test_concurrent_pool_connect_creates_a_single_pool():
+    """Concurrent first use must not build several pools and close each other's."""
+    pool = fake_pool()
+    with patch(
+        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool", return_value=pool
+    ) as pool_class:
+        db_pool = DbConnPool("postgresql://user:pass@localhost/db")
+
+        pools = await asyncio.gather(*(db_pool.pool_connect() for _ in range(5)))
+
+    assert pool_class.call_count == 1
+    assert all(p is pool for p in pools)
+    pool.close.assert_not_called()
+    assert db_pool.is_valid
+
+
+@pytest.mark.asyncio
+async def test_pool_connect_rebuilds_an_invalidated_pool_once():
+    """After invalidation, concurrent callers share one replacement pool."""
+    original, replacement = fake_pool(), fake_pool()
+    with patch(
+        "pg_airman_mcp.sql.sql_driver.AsyncConnectionPool",
+        side_effect=[original, replacement],
+    ) as pool_class:
+        db_pool = DbConnPool("postgresql://user:pass@localhost/db")
+        await db_pool.pool_connect()
+        db_pool._is_valid = False  # type: ignore  # e.g. the server restarted
+
+        pools = await asyncio.gather(*(db_pool.pool_connect() for _ in range(5)))
+
+    assert pool_class.call_count == 2
+    assert all(p is replacement for p in pools)
+    original.close.assert_awaited_once()
+    replacement.close.assert_not_called()

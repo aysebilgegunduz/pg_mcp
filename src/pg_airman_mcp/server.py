@@ -17,7 +17,12 @@ The server is built on FastMCP and provides database management tools:
   - Query optimization (explain_query, analyze_workload_indexes, analyze_query_indexes)
   - Database health monitoring (analyze_db_health, get_top_queries)
   - Metadata management (add_comment_to_object, remove_comment)
-  - Semantic knowledge base (search_kb, list_kbs, get_kb_stats, refresh_kb)
+  - Knowledge maps on pgvector (create_knowledge_map, delete_knowledge_map,
+    search_knowledge_map, list_knowledge_maps, get_knowledge_map_stats,
+    refresh_knowledge_map)
+  - Golden queries (create_golden_query, delete_golden_query,
+    search_golden_queries, execute_golden_query, list_golden_queries,
+    discover_context)
   - SQL execution (execute_sql - access mode dependent)
 
 Configuration System
@@ -78,7 +83,7 @@ from urllib.parse import quote
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import AliasChoices, Field, field_validator, validate_call
+from pydantic import AliasChoices, Field, SecretStr, field_validator, validate_call
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pg_airman_mcp.index.dta_calc import DatabaseTuningAdvisor
@@ -98,17 +103,13 @@ from .index.index_opt_base import MAX_NUM_INDEX_TUNING_QUERIES
 from .index.llm_opt import LLMOptimizerTool
 from .index.presentation import TextPresentation
 from .semantics import (
-    create_semantic_alias,
-    delete_semantic_alias,
+    EMBEDDING_PROVIDERS,
+    EmbeddingProvider,
+    create_embedding_provider,
     discover_schema_for_question,
-    execute_semantic_alias,
-    get_semantic_kb_stats,
-    list_semantic_aliases,
-    list_semantic_kbs,
-    refresh_semantic_kb,
+    golden_query_tools,
+    knowledge_map_tools,
     remove_object_comment,
-    search_semantic_aliases,
-    search_semantic_kb,
 )
 from .sql import (
     DbConnPool,
@@ -181,6 +182,13 @@ class ServerSettings(BaseSettings):
         AIRMAN_MCP_DNS_REBINDING_PROTECTION: DNS rebinding protection
         AIRMAN_MCP_ALLOWED_HOSTS: Allowed Host header values (CSV)
         AIRMAN_MCP_ALLOWED_ORIGINS: Allowed Origin header values (CSV)
+        AIRMAN_MCP_EMBEDDING_PROVIDER: Embedding provider (openai or hash)
+        AIRMAN_MCP_EMBEDDING_MODEL: Embedding model name (openai provider)
+        AIRMAN_MCP_EMBEDDING_BASE_URL: OpenAI-compatible API base URL
+        AIRMAN_MCP_EMBEDDING_API_KEY: API key for the embedding service
+        AIRMAN_MCP_EMBEDDING_DIMENSIONS: Requested embedding dimensions
+        AIRMAN_MCP_EMBEDDING_TIMEOUT: Embedding request timeout in seconds
+        AIRMAN_MCP_EMBEDDING_BATCH_SIZE: Texts per embedding request
 
     Example Usage:
         # Via environment variables
@@ -326,6 +334,35 @@ class ServerSettings(BaseSettings):
         description="Comma-separated allowed Origin header values",
     )
 
+    # Embeddings for the pgvector-backed knowledge map and golden query tools
+    embedding_provider: str | None = Field(
+        default=None,
+        description="Embedding provider: 'openai' (any OpenAI-compatible "
+        "/embeddings API) or 'hash' (built-in, offline, lexical only)",
+    )
+    embedding_model: str | None = Field(
+        default=None,
+        description="Embedding model name (required for the openai provider)",
+    )
+    embedding_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="Base URL of the OpenAI-compatible embeddings API",
+    )
+    embedding_api_key: SecretStr | None = Field(
+        default=None,
+        description="API key for the embeddings API (environment variable only)",
+    )
+    embedding_dimensions: int | None = Field(
+        default=None,
+        description="Embedding dimensions to request (default: model native)",
+    )
+    embedding_timeout: float = Field(
+        default=30.0, description="Embedding request timeout in seconds"
+    )
+    embedding_batch_size: int = Field(
+        default=32, description="Maximum texts per embedding request"
+    )
+
     @field_validator("access_mode")
     @classmethod
     def validate_access_mode(cls, v: str) -> str:
@@ -361,6 +398,19 @@ class ServerSettings(BaseSettings):
                 f"PostgreSQL's 63-byte application_name limit, got {len(v)}: {v!r}"
             )
         return v
+
+    @field_validator("embedding_provider")
+    @classmethod
+    def validate_embedding_provider(cls, v: str | None) -> str | None:
+        """Validate the embedding provider is one of the supported values."""
+        if v is None or v == "":
+            return None
+        if v.lower() not in EMBEDDING_PROVIDERS:
+            raise ValueError(
+                f"embedding_provider must be one of {list(EMBEDDING_PROVIDERS)}, "
+                f"got: {v}"
+            )
+        return v.lower()
 
     @field_validator("auth_type")
     @classmethod
@@ -441,6 +491,8 @@ class ServerSettings(BaseSettings):
 # Global variables
 db_connection = DbConnPool()
 _auth_context: AuthContext | None = None
+embedding_provider: EmbeddingProvider | None = None
+_embedding_config_error: str | None = None
 current_access_mode = AccessMode.UNRESTRICTED
 is_stdio_transport = False
 shutdown_event = threading.Event()
@@ -612,46 +664,60 @@ def create_mcp_server(
         description="Remove the comment from a table, view, or column",
     )
     server.add_tool(
-        search_kb,
-        description="Search semantic KB for tables/columns matching a query",
+        create_knowledge_map,
+        description="Create a knowledge map: a pgvector index of the tables, views "
+        "and columns of the given schemas for natural-language search "
+        "(unrestricted mode only)",
     )
     server.add_tool(
-        list_kbs,
-        description="List all available semantic knowledge bases",
+        delete_knowledge_map,
+        description="Delete a knowledge map and its embeddings "
+        "(unrestricted mode only)",
     )
     server.add_tool(
-        get_kb_stats,
-        description="Get statistics about a semantic knowledge base",
+        search_knowledge_map,
+        description="Search a knowledge map for tables, views and columns matching a "
+        "natural language query",
     )
     server.add_tool(
-        refresh_kb,
-        description="Refresh semantic KB to sync with current schema metadata",
+        list_knowledge_maps,
+        description="List all available knowledge maps",
     )
     server.add_tool(
-        create_alias,
-        description="Create a reusable semantic alias (parameterized SQL query "
-        "with semantic description for discovery)",
+        get_knowledge_map_stats,
+        description="Get statistics about a knowledge map, including how many "
+        "entities are pending a refresh",
     )
     server.add_tool(
-        delete_alias,
-        description="Delete a semantic alias",
+        refresh_knowledge_map,
+        description="Refresh a knowledge map to sync with current schema metadata "
+        "(re-embeds only changed entities; unrestricted mode only)",
     )
     server.add_tool(
-        search_aliases,
-        description="Search semantic aliases by natural language query",
+        create_golden_query,
+        description="Create a golden query: vetted, reusable business SQL (a "
+        "parameterized read-only SELECT) with a description for discovery",
     )
     server.add_tool(
-        execute_alias,
-        description="Execute a semantic alias with parameter values",
+        delete_golden_query,
+        description="Delete a golden query",
     )
     server.add_tool(
-        list_aliases,
-        description="List all available semantic aliases",
+        search_golden_queries,
+        description="Search golden queries by natural language query",
+    )
+    server.add_tool(
+        execute_golden_query,
+        description="Execute a golden query with parameter values",
+    )
+    server.add_tool(
+        list_golden_queries,
+        description="List all available golden queries",
     )
     server.add_tool(
         discover_context,
-        description="Discover schema metadata and existing aliases "
-        "relevant to a business question (for SQL generation)",
+        description="Discover schema metadata and golden queries relevant to a "
+        "business question (for SQL generation)",
     )
 
     # Note: execute_sql will be added separately in main() based on
@@ -677,6 +743,21 @@ async def get_sql_driver() -> SqlDriver | SafeSqlDriver:
     else:
         logger.debug("Using unrestricted SqlDriver (UNRESTRICTED mode)")
         return base_driver
+
+
+def get_embedding_provider() -> EmbeddingProvider:
+    """Get the configured embedding provider used by semantic tools."""
+    if _embedding_config_error is not None:
+        raise ValueError(
+            f"The embedding provider is misconfigured: {_embedding_config_error}"
+        )
+    if embedding_provider is None:
+        raise ValueError(
+            "No embedding provider is configured. Set AIRMAN_MCP_EMBEDDING_PROVIDER "
+            "to 'openai' (with AIRMAN_MCP_EMBEDDING_MODEL) or 'hash' to use "
+            "semantic search tools."
+        )
+    return embedding_provider
 
 
 def format_text_response(text: Any) -> ResponseType:
@@ -1374,8 +1455,39 @@ async def remove_comment(
         return format_error_response(str(e))
 
 
-async def search_kb(
-    kb_name: str = Field(description="Name of the semantic knowledge base"),
+async def create_knowledge_map(
+    map_name: str = Field(description="Unique name for the knowledge map"),
+    schemas: list[str] = Field(
+        description="Database schemas whose tables, views and columns to include"
+    ),
+) -> ResponseType:
+    """Create a knowledge map."""
+    try:
+        sql_driver = await get_sql_driver()
+        result = await knowledge_map_tools.create_knowledge_map(
+            sql_driver, get_embedding_provider(), map_name, schemas
+        )
+        return format_text_response(result)
+    except Exception as e:
+        logger.error(f"Error creating knowledge map: {e}")
+        return format_error_response(str(e))
+
+
+async def delete_knowledge_map(
+    map_name: str = Field(description="Name of the knowledge map"),
+) -> ResponseType:
+    """Delete a knowledge map."""
+    try:
+        sql_driver = await get_sql_driver()
+        result = await knowledge_map_tools.delete_knowledge_map(sql_driver, map_name)
+        return format_text_response(result)
+    except Exception as e:
+        logger.error(f"Error deleting knowledge map: {e}")
+        return format_error_response(str(e))
+
+
+async def search_knowledge_map(
+    map_name: str = Field(description="Name of the knowledge map"),
     query: str = Field(description="Natural language query"),
     min_similarity: float = Field(
         default=0.7, description="Minimum similarity (0.0-1.0)"
@@ -1385,145 +1497,171 @@ async def search_kb(
     ),
     limit: int = Field(default=20, description="Maximum results"),
 ) -> ResponseType:
-    """Search semantic KB for relevant schema elements."""
+    """Search a knowledge map for relevant schema elements."""
     try:
         sql_driver = await get_sql_driver()
-        results = await search_semantic_kb(
-            sql_driver, kb_name, query, min_similarity, entity_types, limit
+        results = await knowledge_map_tools.search_knowledge_map(
+            sql_driver,
+            get_embedding_provider(),
+            map_name,
+            query,
+            min_similarity,
+            entity_types,
+            limit,
         )
         return format_text_response(results)
     except Exception as e:
-        logger.error(f"Error searching semantic KB: {e}")
+        logger.error(f"Error searching knowledge map: {e}")
         return format_error_response(str(e))
 
 
-async def list_kbs() -> ResponseType:
-    """List all semantic knowledge bases."""
+async def list_knowledge_maps() -> ResponseType:
+    """List all knowledge maps."""
     try:
         sql_driver = await get_sql_driver()
-        results = await list_semantic_kbs(sql_driver)
+        results = await knowledge_map_tools.list_knowledge_maps(sql_driver)
         return format_text_response(results)
     except Exception as e:
-        logger.error(f"Error listing semantic KBs: {e}")
+        logger.error(f"Error listing knowledge maps: {e}")
         return format_error_response(str(e))
 
 
-async def get_kb_stats(
-    kb_name: str = Field(description="Name of the semantic knowledge base"),
+async def get_knowledge_map_stats(
+    map_name: str = Field(description="Name of the knowledge map"),
 ) -> ResponseType:
-    """Get semantic KB statistics."""
+    """Get knowledge map statistics."""
     try:
         sql_driver = await get_sql_driver()
-        results = await get_semantic_kb_stats(sql_driver, kb_name)
+        results = await knowledge_map_tools.get_knowledge_map_stats(
+            sql_driver, map_name
+        )
         return format_text_response(results)
     except Exception as e:
-        logger.error(f"Error getting semantic KB stats: {e}")
+        logger.error(f"Error getting knowledge map stats: {e}")
         return format_error_response(str(e))
 
 
-async def refresh_kb(
-    kb_name: str = Field(description="Name of the semantic knowledge base"),
+async def refresh_knowledge_map(
+    map_name: str = Field(description="Name of the knowledge map"),
 ) -> ResponseType:
-    """Refresh semantic knowledge base."""
+    """Refresh a knowledge map."""
     try:
         sql_driver = await get_sql_driver()
-        result = await refresh_semantic_kb(sql_driver, kb_name)
+        result = await knowledge_map_tools.refresh_knowledge_map(
+            sql_driver, get_embedding_provider(), map_name
+        )
         return format_text_response(result)
     except Exception as e:
-        logger.error(f"Error refreshing semantic KB: {e}")
+        logger.error(f"Error refreshing knowledge map: {e}")
         return format_error_response(str(e))
 
 
-async def create_alias(
-    kb_name: str = Field(description="Name of the semantic knowledge base"),
-    name: str = Field(description="Unique name for the semantic alias"),
+async def create_golden_query(
+    map_name: str = Field(
+        description="Name of the knowledge map (selects the embedding model)"
+    ),
+    name: str = Field(description="Unique name for the golden query"),
     description: str = Field(
-        description="Business description of what this query does"
+        description="Business description of what this query answers"
     ),
     query_text: str = Field(
-        description="Complete SQL query with ${param_name} placeholders"
+        description="A single read-only SELECT query with ${param_name} "
+        "placeholders (values are bound as typed parameters)"
     ),
     parameters: list[dict[str, Any]] | None = Field(
         default=None,
-        description="Parameter definitions as JSONB array of "
-        "{name, param_type, description} objects",
+        description="Parameter definitions as an array of "
+        "{name, param_type, description} objects. param_type is one of: text, "
+        "varchar, integer, bigint, smallint, numeric, real, double precision, "
+        "boolean, date, timestamp, timestamptz, time, interval, uuid, json, "
+        "jsonb, or a scalar type with [] for arrays",
     ),
 ) -> ResponseType:
-    """Create a semantic alias for a reusable parameterized SQL query."""
+    """Create a golden query: vetted, reusable, parameterized business SQL."""
     try:
         sql_driver = await get_sql_driver()
-        result = await create_semantic_alias(
-            sql_driver, kb_name, name, description, query_text, parameters
+        result = await golden_query_tools.create_golden_query(
+            sql_driver,
+            get_embedding_provider(),
+            map_name,
+            name,
+            description,
+            query_text,
+            parameters,
         )
         return format_text_response(result)
     except Exception as e:
-        logger.error(f"Error creating semantic alias: {e}")
+        logger.error(f"Error creating golden query: {e}")
         return format_error_response(str(e))
 
 
-async def delete_alias(
-    name: str = Field(description="Name of the semantic alias to delete"),
+async def delete_golden_query(
+    name: str = Field(description="Name of the golden query to delete"),
 ) -> ResponseType:
-    """Delete a semantic alias."""
+    """Delete a golden query."""
     try:
         sql_driver = await get_sql_driver()
-        result = await delete_semantic_alias(sql_driver, name)
+        result = await golden_query_tools.delete_golden_query(sql_driver, name)
         return format_text_response(result)
     except Exception as e:
-        logger.error(f"Error deleting semantic alias: {e}")
+        logger.error(f"Error deleting golden query: {e}")
         return format_error_response(str(e))
 
 
-async def search_aliases(
-    kb_name: str = Field(description="Name of the semantic knowledge base"),
+async def search_golden_queries(
+    map_name: str = Field(
+        description="Name of the knowledge map (selects the embedding model)"
+    ),
     query: str = Field(description="Natural language query"),
     min_similarity: float = Field(
         default=0.7, description="Minimum similarity (0.0-1.0)"
     ),
     limit: int = Field(default=10, description="Maximum results"),
 ) -> ResponseType:
-    """Search semantic aliases by natural language query."""
+    """Search golden queries by natural language query."""
     try:
         sql_driver = await get_sql_driver()
-        results = await search_semantic_aliases(
-            sql_driver, kb_name, query, min_similarity, limit
+        results = await golden_query_tools.search_golden_queries(
+            sql_driver, get_embedding_provider(), map_name, query, min_similarity, limit
         )
         return format_text_response(results)
     except Exception as e:
-        logger.error(f"Error searching semantic aliases: {e}")
+        logger.error(f"Error searching golden queries: {e}")
         return format_error_response(str(e))
 
 
-async def execute_alias(
-    name: str = Field(description="Name of the semantic alias to execute"),
+async def execute_golden_query(
+    name: str = Field(description="Name of the golden query to execute"),
     parameters: dict[str, Any] | None = Field(
         default=None,
         description="Parameter values as {param_name: value}",
     ),
     execute_as_role: str | None = Field(
-        default=None, description="Optional role to execute as"
+        default=None,
+        description="Optional role to execute as (the connecting user must be "
+        "a member of it)",
     ),
 ) -> ResponseType:
-    """Execute a semantic alias with parameter values."""
+    """Execute a golden query with parameter values."""
     try:
         sql_driver = await get_sql_driver()
-        results = await execute_semantic_alias(
+        results = await golden_query_tools.execute_golden_query(
             sql_driver, name, parameters, execute_as_role
         )
         return format_text_response(results)
     except Exception as e:
-        logger.error(f"Error executing semantic alias: {e}")
+        logger.error(f"Error executing golden query: {e}")
         return format_error_response(str(e))
 
 
-async def list_aliases() -> ResponseType:
-    """List all available semantic aliases."""
+async def list_golden_queries() -> ResponseType:
+    """List all available golden queries."""
     try:
         sql_driver = await get_sql_driver()
-        results = await list_semantic_aliases(sql_driver)
+        results = await golden_query_tools.list_golden_queries(sql_driver)
         return format_text_response(results)
     except Exception as e:
-        logger.error(f"Error listing semantic aliases: {e}")
+        logger.error(f"Error listing golden queries: {e}")
         return format_error_response(str(e))
 
 
@@ -1531,23 +1669,24 @@ async def discover_context(
     question: str = Field(
         description="The business question to find schema elements for"
     ),
-    kb_name: str = Field(description="Semantic knowledge base to search"),
-    include_aliases: bool = Field(
-        default=True, description="Whether to also search semantic aliases"
+    map_name: str = Field(description="Knowledge map to search"),
+    include_golden_queries: bool = Field(
+        default=True, description="Whether to also search golden queries"
     ),
     min_similarity: float = Field(
         default=0.6, description="Minimum similarity threshold (0.0-1.0)"
     ),
     max_results: int = Field(default=15, description="Maximum results per category"),
 ) -> ResponseType:
-    """Discover schema metadata and aliases relevant to a business question."""
+    """Discover schema metadata and golden queries relevant to a question."""
     try:
         sql_driver = await get_sql_driver()
         results = await discover_schema_for_question(
             sql_driver,
-            kb_name,
+            get_embedding_provider(),
+            map_name,
             question,
-            include_aliases,
+            include_golden_queries,
             min_similarity,
             max_results,
         )
@@ -1696,6 +1835,33 @@ Environment Variables:
         help="Enable session token tracing. Extracts token from MCP _meta "
         "and sets application_name per transaction via SET LOCAL.",
     )
+    parser.add_argument(
+        "--embedding-provider",
+        type=str,
+        choices=list(EMBEDDING_PROVIDERS),
+        default=settings.embedding_provider,
+        help="Embedding provider for knowledge map/golden query tools: 'openai' (any "
+        "OpenAI-compatible /embeddings API) or 'hash' (offline, lexical only). "
+        "The API key is read from AIRMAN_MCP_EMBEDDING_API_KEY only.",
+    )
+    parser.add_argument(
+        "--embedding-model",
+        type=str,
+        default=settings.embedding_model,
+        help="Embedding model name (e.g. text-embedding-3-small, nomic-embed-text)",
+    )
+    parser.add_argument(
+        "--embedding-base-url",
+        type=str,
+        default=settings.embedding_base_url,
+        help=f"OpenAI-compatible API base URL (default: {settings.embedding_base_url})",
+    )
+    parser.add_argument(
+        "--embedding-dimensions",
+        type=int,
+        default=settings.embedding_dimensions,
+        help="Embedding dimensions to request (default: model native size)",
+    )
     # Authentication arguments (delegated to auth_config)
     add_auth_cli_args(parser, settings)
 
@@ -1714,6 +1880,10 @@ Environment Variables:
     settings.allowed_origins = args.allowed_origins
     settings.purpose = args.purpose
     settings.tracing = args.tracing
+    settings.embedding_provider = args.embedding_provider
+    settings.embedding_model = args.embedding_model
+    settings.embedding_base_url = args.embedding_base_url
+    settings.embedding_dimensions = args.embedding_dimensions
 
     # Auth CLI overrides (delegated to auth_config)
     apply_auth_cli_overrides(settings, args)
@@ -1750,6 +1920,32 @@ Environment Variables:
                 jwks_cache_ttl=settings.jwt_jwks_cache_ttl,
             ),
         )
+
+    # Configure the embedding provider for the knowledge map/golden query tools. Like
+    # an unreachable database, a bad configuration disables only those tools.
+    global embedding_provider, _embedding_config_error
+    try:
+        api_key = settings.embedding_api_key
+        embedding_provider = create_embedding_provider(
+            provider=settings.embedding_provider,
+            model=settings.embedding_model,
+            base_url=settings.embedding_base_url,
+            api_key=api_key.get_secret_value() if api_key else None,
+            dimensions=settings.embedding_dimensions,
+            timeout=settings.embedding_timeout,
+            batch_size=settings.embedding_batch_size,
+        )
+        _embedding_config_error = None
+    except ValueError as e:
+        embedding_provider = None
+        _embedding_config_error = str(e)
+        logger.error(f"Invalid embedding configuration, semantic tools disabled: {e}")
+    if embedding_provider is not None:
+        logger.info(
+            f"Semantic tools using embedding model '{embedding_provider.model_name}'"
+        )
+    elif _embedding_config_error is None:
+        logger.info("No embedding provider configured; semantic search tools disabled")
 
     # Build transport security settings
     transport_security = settings.build_transport_security()
@@ -1875,6 +2071,12 @@ async def shutdown(sig=None):
             await _auth_context.token_verifier.close()  # type: ignore[attr-defined]
         except Exception as e:
             logger.error(f"Error closing token verifier: {e}")
+
+    if embedding_provider is not None:
+        try:
+            await embedding_provider.close()
+        except Exception as e:
+            logger.error(f"Error closing embedding provider: {e}")
 
     # Close database connections
     try:
