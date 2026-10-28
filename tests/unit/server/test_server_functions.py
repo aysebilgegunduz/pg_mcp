@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import mcp.types as types
 import pytest
 
-from pg_airman_mcp.server import (
+from pgpacer.server import (
     format_error_response,
     format_text_response,
     handle_transport_exit,
@@ -88,46 +88,46 @@ class TestSignalHandlers:
 
     def test_signal_handler_stdio_transport(self):
         """Test signal handler calls sys.exit() for stdio transport."""
-        with patch("pg_airman_mcp.server.is_stdio_transport", True):
-            with patch("pg_airman_mcp.server.sys.exit") as mock_exit:
+        with patch("pgpacer.server.is_stdio_transport", True):
+            with patch("pgpacer.server.sys.exit") as mock_exit:
                 signal_handler(signal.SIGINT, None)
                 mock_exit.assert_called_once_with(0)
 
     def test_signal_handler_sse_transport(self):
         """Test signal handler sets shutdown_event for SSE transport."""
-        with patch("pg_airman_mcp.server.is_stdio_transport", False):
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+        with patch("pgpacer.server.is_stdio_transport", False):
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 signal_handler(signal.SIGTERM, None)
                 mock_event.set.assert_called_once()
 
     def test_signal_handler_http_transport(self):
         """Test signal handler sets shutdown_event for HTTP transport."""
-        with patch("pg_airman_mcp.server.is_stdio_transport", False):
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+        with patch("pgpacer.server.is_stdio_transport", False):
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 signal_handler(signal.SIGINT, None)
                 mock_event.set.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handle_transport_exit_stdio(self):
         """Test handle_transport_exit calls sys.exit for stdio."""
-        with patch("pg_airman_mcp.server.is_stdio_transport", True):
-            with patch("pg_airman_mcp.server.sys.exit") as mock_exit:
+        with patch("pgpacer.server.is_stdio_transport", True):
+            with patch("pgpacer.server.sys.exit") as mock_exit:
                 await handle_transport_exit(0)
                 mock_exit.assert_called_once_with(0)
 
     @pytest.mark.asyncio
     async def test_handle_transport_exit_stdio_error_code(self):
         """Test handle_transport_exit with error code for stdio."""
-        with patch("pg_airman_mcp.server.is_stdio_transport", True):
-            with patch("pg_airman_mcp.server.sys.exit") as mock_exit:
+        with patch("pgpacer.server.is_stdio_transport", True):
+            with patch("pgpacer.server.sys.exit") as mock_exit:
                 await handle_transport_exit(1)
                 mock_exit.assert_called_once_with(1)
 
     @pytest.mark.asyncio
     async def test_handle_transport_exit_non_stdio(self):
         """Test handle_transport_exit calls shutdown for non-stdio."""
-        with patch("pg_airman_mcp.server.is_stdio_transport", False):
-            with patch("pg_airman_mcp.server.shutdown") as mock_shutdown:
+        with patch("pgpacer.server.is_stdio_transport", False):
+            with patch("pgpacer.server.shutdown") as mock_shutdown:
                 # Make shutdown a coroutine
                 mock_shutdown.return_value = AsyncMock()
                 await handle_transport_exit(0)
@@ -137,7 +137,7 @@ class TestSignalHandlers:
     @pytest.mark.asyncio
     async def test_shutdown_closes_db_connection(self):
         """Test shutdown properly closes database connections."""
-        with patch("pg_airman_mcp.server.db_connection") as mock_db:
+        with patch("pgpacer.server.db_connection") as mock_db:
             mock_db.close = AsyncMock()
             await shutdown()
             mock_db.close.assert_called_once()
@@ -146,8 +146,8 @@ class TestSignalHandlers:
     async def test_shutdown_handles_db_close_error(self):
         """Test shutdown handles database close errors gracefully."""
         with (
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
-            patch("pg_airman_mcp.server.logger") as mock_logger,
+            patch("pgpacer.server.db_connection") as mock_db,
+            patch("pgpacer.server.logger") as mock_logger,
         ):
             mock_db.close = AsyncMock(side_effect=Exception("Close failed"))
             # Should not raise, should log error
@@ -158,8 +158,8 @@ class TestSignalHandlers:
     async def test_shutdown_with_signal(self):
         """Test shutdown logs signal when provided."""
         with (
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
-            patch("pg_airman_mcp.server.logger") as mock_logger,
+            patch("pgpacer.server.db_connection") as mock_db,
+            patch("pgpacer.server.logger") as mock_logger,
         ):
             mock_db.close = AsyncMock()
             mock_signal = MagicMock()
@@ -175,12 +175,12 @@ class TestToolParameterValidation:
     @pytest.mark.asyncio
     async def test_analyze_workload_indexes_default_max_size(self):
         """Test analyze_workload_indexes uses default max_index_size_mb."""
-        from pg_airman_mcp.server import analyze_workload_indexes
+        from pgpacer.server import analyze_workload_indexes
 
         with (
-            patch("pg_airman_mcp.server.get_sql_driver") as mock_driver,
-            patch("pg_airman_mcp.server.DatabaseTuningAdvisor"),
-            patch("pg_airman_mcp.server.TextPresentation") as mock_presentation,
+            patch("pgpacer.server.get_sql_driver") as mock_driver,
+            patch("pgpacer.server.DatabaseTuningAdvisor"),
+            patch("pgpacer.server.TextPresentation") as mock_presentation,
         ):
             mock_sql_driver = AsyncMock()
             mock_driver.return_value = mock_sql_driver
@@ -202,7 +202,7 @@ class TestToolParameterValidation:
         """Test analyze_query_indexes requires queries to be a list."""
         from pydantic import ValidationError
 
-        from pg_airman_mcp.server import analyze_query_indexes
+        from pgpacer.server import analyze_query_indexes
 
         # Should raise ValidationError for non-list
         with pytest.raises(ValidationError):
@@ -211,7 +211,7 @@ class TestToolParameterValidation:
     @pytest.mark.asyncio
     async def test_analyze_query_indexes_empty_list_error(self):
         """Test analyze_query_indexes returns error for empty list."""
-        from pg_airman_mcp.server import analyze_query_indexes
+        from pgpacer.server import analyze_query_indexes
 
         result = await analyze_query_indexes(queries=[])
         # Should return error response
@@ -224,7 +224,7 @@ class TestToolParameterValidation:
     @pytest.mark.asyncio
     async def test_analyze_query_indexes_max_queries_limit(self):
         """Test analyze_query_indexes enforces MAX_NUM_INDEX_TUNING_QUERIES."""
-        from pg_airman_mcp.server import analyze_query_indexes
+        from pgpacer.server import analyze_query_indexes
 
         # Create 11 queries (exceeds limit of 10)
         many_queries = [f"SELECT {i}" for i in range(11)]
@@ -244,9 +244,9 @@ class TestToolErrorHandling:
     @pytest.mark.asyncio
     async def test_list_schemas_db_error(self):
         """Test list_schemas handles database errors."""
-        from pg_airman_mcp.server import list_schemas
+        from pgpacer.server import list_schemas
 
-        with patch("pg_airman_mcp.server.get_sql_driver") as mock_driver:
+        with patch("pgpacer.server.get_sql_driver") as mock_driver:
             mock_sql_driver = AsyncMock()
             mock_sql_driver.execute_query = AsyncMock(
                 side_effect=Exception("Database connection failed")
@@ -265,14 +265,12 @@ class TestToolErrorHandling:
     @pytest.mark.asyncio
     async def test_explain_query_invalid_sql(self):
         """Test explain_query handles invalid SQL."""
-        from pg_airman_mcp.server import explain_query
+        from pgpacer.server import explain_query
 
         with (
-            patch("pg_airman_mcp.server.get_sql_driver") as mock_driver,
-            patch("pg_airman_mcp.server.ExplainPlanTool") as mock_tool,
-            patch(
-                "pg_airman_mcp.server.check_hypopg_installation_status"
-            ) as mock_hypopg,
+            patch("pgpacer.server.get_sql_driver") as mock_driver,
+            patch("pgpacer.server.ExplainPlanTool") as mock_tool,
+            patch("pgpacer.server.check_hypopg_installation_status") as mock_hypopg,
         ):
             mock_sql_driver = AsyncMock()
             mock_driver.return_value = mock_sql_driver
@@ -301,9 +299,9 @@ class TestToolErrorHandling:
     @pytest.mark.asyncio
     async def test_execute_sql_connection_error(self):
         """Test execute_sql handles connection errors."""
-        from pg_airman_mcp.server import execute_sql
+        from pgpacer.server import execute_sql
 
-        with patch("pg_airman_mcp.server.get_sql_driver") as mock_driver:
+        with patch("pgpacer.server.get_sql_driver") as mock_driver:
             mock_sql_driver = AsyncMock()
             mock_sql_driver.execute_query = AsyncMock(
                 side_effect=Exception("Connection timeout")
@@ -322,9 +320,9 @@ class TestToolErrorHandling:
     @pytest.mark.asyncio
     async def test_get_object_details_not_found(self):
         """Test get_object_details handles non-existent objects."""
-        from pg_airman_mcp.server import get_object_details
+        from pgpacer.server import get_object_details
 
-        with patch("pg_airman_mcp.server.get_sql_driver") as mock_driver:
+        with patch("pgpacer.server.get_sql_driver") as mock_driver:
             mock_sql_driver = AsyncMock()
             mock_sql_driver.execute_query = AsyncMock(
                 side_effect=Exception("relation does not exist")
@@ -344,15 +342,15 @@ class TestToolErrorHandling:
     @pytest.mark.asyncio
     async def test_analyze_db_health_extension_missing(self):
         """Test analyze_db_health handles missing extensions."""
-        from pg_airman_mcp.server import analyze_db_health
+        from pgpacer.server import analyze_db_health
 
-        with patch("pg_airman_mcp.server.get_sql_driver") as mock_driver:
+        with patch("pgpacer.server.get_sql_driver") as mock_driver:
             mock_sql_driver = AsyncMock()
             mock_driver.return_value = mock_sql_driver
 
             # DatabaseHealthTool is instantiated directly in analyze_db_health
             # We need to patch it at construction time
-            with patch("pg_airman_mcp.server.DatabaseHealthTool") as mock_tool_class:
+            with patch("pgpacer.server.DatabaseHealthTool") as mock_tool_class:
                 mock_health_instance = MagicMock()
                 mock_health_instance.health = AsyncMock(
                     side_effect=Exception("pg_stat_statements not installed")
@@ -370,9 +368,9 @@ class TestToolErrorHandling:
     @pytest.mark.asyncio
     async def test_list_objects_invalid_type(self):
         """Test list_objects handles invalid object_type."""
-        from pg_airman_mcp.server import list_objects
+        from pgpacer.server import list_objects
 
-        with patch("pg_airman_mcp.server.get_sql_driver"):
+        with patch("pgpacer.server.get_sql_driver"):
             result = await list_objects(
                 schema_name="public", object_type="invalid_type"
             )
@@ -391,10 +389,10 @@ class TestMainFunctionIntegration:
     @pytest.mark.asyncio
     async def test_main_requires_database_url(self):
         """Test main() raises error when no database URL provided."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
             patch("sys.argv", ["server.py"]),
         ):
             # Mock settings with no database_url
@@ -414,11 +412,11 @@ class TestMainFunctionIntegration:
 
     @pytest.mark.asyncio
     async def test_main_auth_requires_server_url_for_stdio(self):
-        """Test auth with stdio requires AIRMAN_MCP_SERVER_URL."""
-        from pg_airman_mcp.server import main
+        """Test auth with stdio requires PGPACER_SERVER_URL."""
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
             patch("sys.argv", ["server.py", "postgresql://test"]),
         ):
             # Mock settings with auth enabled but no server_url
@@ -435,17 +433,17 @@ class TestMainFunctionIntegration:
             # Should raise ValueError
             with pytest.raises(ValueError) as exc:
                 await main()
-            assert "AIRMAN_MCP_SERVER_URL" in str(exc.value)
+            assert "PGPACER_SERVER_URL" in str(exc.value)
 
     @pytest.mark.asyncio
     async def test_main_adds_execute_sql_tool_unrestricted(self):
         """Test execute_sql tool added with unrestricted description."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch("sys.argv", ["server.py", "postgresql://test"]),
             patch("signal.signal"),
         ):
@@ -472,7 +470,7 @@ class TestMainFunctionIntegration:
             mock_db.close = AsyncMock()
 
             # Mock shutdown_event to exit loop immediately
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 # main() calls sys.exit(0) at the end
@@ -495,12 +493,12 @@ class TestMainFunctionIntegration:
     @pytest.mark.asyncio
     async def test_main_adds_execute_sql_tool_restricted(self):
         """Test execute_sql tool added with restricted description."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch("sys.argv", ["server.py", "postgresql://test"]),
             patch("signal.signal"),
         ):
@@ -524,7 +522,7 @@ class TestMainFunctionIntegration:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 # main() calls sys.exit(0) at the end
@@ -551,9 +549,9 @@ class TestToolRegistration:
 
     def test_all_required_tools_registered(self):
         """Test that all expected tools are registered."""
-        from pg_airman_mcp.server import create_mcp_server
+        from pgpacer.server import create_mcp_server
 
-        with patch("pg_airman_mcp.server.FastMCP") as mock_fastmcp:
+        with patch("pgpacer.server.FastMCP") as mock_fastmcp:
             mock_instance = MagicMock()
             mock_fastmcp.return_value = mock_instance
 
@@ -597,9 +595,9 @@ class TestToolRegistration:
 
     def test_tools_have_descriptions(self):
         """Test that all registered tools have descriptions."""
-        from pg_airman_mcp.server import create_mcp_server
+        from pgpacer.server import create_mcp_server
 
-        with patch("pg_airman_mcp.server.FastMCP") as mock_fastmcp:
+        with patch("pgpacer.server.FastMCP") as mock_fastmcp:
             mock_instance = MagicMock()
             mock_fastmcp.return_value = mock_instance
 
@@ -616,9 +614,9 @@ class TestToolRegistration:
         """Test that all registered tool functions are async."""
         import asyncio
 
-        from pg_airman_mcp.server import create_mcp_server
+        from pgpacer.server import create_mcp_server
 
-        with patch("pg_airman_mcp.server.FastMCP") as mock_fastmcp:
+        with patch("pgpacer.server.FastMCP") as mock_fastmcp:
             mock_instance = MagicMock()
             mock_fastmcp.return_value = mock_instance
 
@@ -635,9 +633,9 @@ class TestToolRegistration:
         """Test that tool functions have properly defined parameters."""
         import inspect
 
-        from pg_airman_mcp.server import create_mcp_server
+        from pgpacer.server import create_mcp_server
 
-        with patch("pg_airman_mcp.server.FastMCP") as mock_fastmcp:
+        with patch("pgpacer.server.FastMCP") as mock_fastmcp:
             mock_instance = MagicMock()
             mock_fastmcp.return_value = mock_instance
 
@@ -657,10 +655,10 @@ class TestToolRegistration:
 
     def test_tool_registration_with_auth(self):
         """Test tools are registered correctly with authentication enabled."""
-        from pg_airman_mcp.auth_config import AuthContext
-        from pg_airman_mcp.server import create_mcp_server
+        from pgpacer.auth_config import AuthContext
+        from pgpacer.server import create_mcp_server
 
-        with patch("pg_airman_mcp.server.FastMCP") as mock_fastmcp:
+        with patch("pgpacer.server.FastMCP") as mock_fastmcp:
             mock_instance = MagicMock()
             mock_fastmcp.return_value = mock_instance
 
@@ -677,7 +675,7 @@ class TestToolRegistration:
         """Test list_schemas tool has expected parameters."""
         import inspect
 
-        from pg_airman_mcp.server import list_schemas
+        from pgpacer.server import list_schemas
 
         sig = inspect.signature(list_schemas)
         params = list(sig.parameters.keys())
@@ -691,7 +689,7 @@ class TestToolRegistration:
         """Test explain_query tool has expected parameters."""
         import inspect
 
-        from pg_airman_mcp.server import explain_query
+        from pgpacer.server import explain_query
 
         sig = inspect.signature(explain_query)
         params = list(sig.parameters.keys())
@@ -705,7 +703,7 @@ class TestToolRegistration:
         """Test execute_sql tool has expected parameters."""
         import inspect
 
-        from pg_airman_mcp.server import execute_sql
+        from pgpacer.server import execute_sql
 
         sig = inspect.signature(execute_sql)
         params = list(sig.parameters.keys())
@@ -718,7 +716,7 @@ class TestToolRegistration:
         """Test analyze_workload_indexes has expected parameters."""
         import inspect
 
-        from pg_airman_mcp.server import analyze_workload_indexes
+        from pgpacer.server import analyze_workload_indexes
 
         sig = inspect.signature(analyze_workload_indexes)
         params = list(sig.parameters.keys())
@@ -731,7 +729,7 @@ class TestToolRegistration:
         """Test get_top_queries has expected parameters."""
         import inspect
 
-        from pg_airman_mcp.server import get_top_queries
+        from pgpacer.server import get_top_queries
 
         sig = inspect.signature(get_top_queries)
         params = list(sig.parameters.keys())
@@ -744,7 +742,7 @@ class TestToolRegistration:
         """Test that all tool functions have return type annotations."""
         import inspect
 
-        from pg_airman_mcp.server import (
+        from pgpacer.server import (
             add_comment_to_object,
             analyze_db_health,
             analyze_query_indexes,
@@ -778,7 +776,7 @@ class TestToolRegistration:
 
     def test_tool_docstrings_present(self):
         """Test that all tool functions have docstrings."""
-        from pg_airman_mcp.server import (
+        from pgpacer.server import (
             add_comment_to_object,
             analyze_db_health,
             analyze_query_indexes,
@@ -895,12 +893,12 @@ class TestAuthBooleanFlags:
     @pytest.mark.asyncio
     async def test_main_no_auth_enabled_overrides_env(self):
         """--no-auth-enabled disables auth even when env default is True."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch(
                 "sys.argv",
                 ["server.py", "postgresql://test", "--no-auth-enabled"],
@@ -928,7 +926,7 @@ class TestAuthBooleanFlags:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit) as exc:
@@ -942,12 +940,12 @@ class TestAuthBooleanFlags:
     async def test_main_no_auth_validate_resource_overrides_env(self):
         """--no-auth-validate-resource disables validation even when
         env default is True."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch(
                 "sys.argv",
                 ["server.py", "postgresql://test", "--no-auth-validate-resource"],
@@ -975,7 +973,7 @@ class TestAuthBooleanFlags:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit) as exc:

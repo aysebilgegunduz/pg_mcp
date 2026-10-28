@@ -14,18 +14,18 @@ import pytest
 import pytest_asyncio
 from semantic_db import create_customer_schema, run_sql
 
-from pg_airman_mcp.semantics.golden_query_tools import (
+from pgpacer.semantics.golden_query_tools import (
     create_golden_query,
     delete_golden_query,
     execute_golden_query,
     list_golden_queries,
     search_golden_queries,
 )
-from pg_airman_mcp.semantics.knowledge_map_tools import (
+from pgpacer.semantics.knowledge_map_tools import (
     create_knowledge_map,
     delete_knowledge_map,
 )
-from pg_airman_mcp.sql import SafeSqlDriver
+from pgpacer.sql import SafeSqlDriver
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ async def test_create_golden_query_stores_model_and_vector(
     rows = await sql_driver.execute_query(
         """
         SELECT model_name, dimensions, vector_dims(embedding) AS dims, parameters
-        FROM airman_semantic.golden_queries WHERE name = %s
+        FROM pgpacer.golden_queries WHERE name = %s
         """,
         ["mcp_test_customer_by_email"],
     )
@@ -109,7 +109,7 @@ async def test_create_golden_query_stores_model_and_vector(
     assert rows
     stored = rows[0].cells
     assert (stored["model_name"], stored["dimensions"], stored["dims"]) == (
-        "airman-hash-v1",
+        "pgpacer-hash-v1",
         256,
         256,
     )
@@ -309,7 +309,7 @@ async def test_tampered_stored_golden_query_is_not_executed(
     """Rows edited directly in the database are revalidated before running."""
     await create_email_query(sql_driver, embedder)
     await sql_driver.execute_query(
-        "UPDATE airman_semantic.golden_queries SET query_text = %s, parameters = '[]' "
+        "UPDATE pgpacer.golden_queries SET query_text = %s, parameters = '[]' "
         "WHERE name = %s",
         [
             f"WITH d AS (DELETE FROM {SCHEMA}.orders RETURNING *) SELECT * FROM d",
@@ -473,10 +473,7 @@ async def test_golden_query_writes_blocked_in_restricted_mode_by_default(
 async def test_golden_query_writes_allowed_in_restricted_mode_with_flag(
     safe_driver, sample_map, embedder
 ):
-    flag = (
-        "pg_airman_mcp.semantics.golden_query_tools."
-        "ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED"
-    )
+    flag = "pgpacer.semantics.golden_query_tools.ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED"
     with patch(flag, True):
         await create(
             safe_driver,

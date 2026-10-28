@@ -1,7 +1,7 @@
 """Golden query tools for business SQL management and discovery.
 
 A golden query is vetted, reusable business SQL: a named, read-only query with
-``${param}`` placeholders, stored in ``airman_semantic.golden_queries`` together
+``${param}`` placeholders, stored in ``pgpacer.golden_queries`` together
 with an embedding of its description so agents can discover it by
 natural-language search.
 
@@ -24,8 +24,8 @@ from psycopg import AsyncRawCursor
 from psycopg import sql as psycopg_sql
 from psycopg.rows import dict_row
 
-from pg_airman_mcp.sql import SafeSqlDriver, SqlDriver
-from pg_airman_mcp.sql.safe_sql import ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED
+from pgpacer.sql import SafeSqlDriver, SqlDriver
+from pgpacer.sql.safe_sql import ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED
 
 from .embeddings import EmbeddingProvider
 from .query_template import (
@@ -61,7 +61,7 @@ _SEARCH_SQL = """
                CASE WHEN vector_dims(a.embedding) = q.dims
                     THEN 1 - (a.embedding <=> q.embedding)
                END AS similarity
-        FROM airman_semantic.golden_queries a, q
+        FROM pgpacer.golden_queries a, q
         WHERE a.model_name = %s
           AND a.dimensions = q.dims
     ) s
@@ -145,7 +145,7 @@ async def create_golden_query(
 
     rows = await driver.execute_query(
         """
-        INSERT INTO airman_semantic.golden_queries
+        INSERT INTO pgpacer.golden_queries
             (name, description, query_text, parameters, model_name, dimensions,
              embedding)
         VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s::vector)
@@ -187,7 +187,7 @@ async def delete_golden_query(
     rows = None
     if await is_installed(driver):
         rows = await driver.execute_query(
-            "DELETE FROM airman_semantic.golden_queries WHERE name = %s RETURNING name",
+            "DELETE FROM pgpacer.golden_queries WHERE name = %s RETURNING name",
             [name],
         )
     if not rows:
@@ -346,7 +346,7 @@ async def list_golden_queries(
         SELECT name, description, query_text, parameters,
                jsonb_array_length(parameters) AS param_count,
                model_name, created_by, created_at
-        FROM airman_semantic.golden_queries
+        FROM pgpacer.golden_queries
         ORDER BY name
         """
     )
@@ -361,8 +361,7 @@ async def _get_golden_query(
     rows = None
     if await is_installed(sql_driver):
         rows = await sql_driver.execute_query(
-            "SELECT query_text, parameters FROM airman_semantic.golden_queries "
-            "WHERE name = %s",
+            "SELECT query_text, parameters FROM pgpacer.golden_queries WHERE name = %s",
             [name],
         )
     if not rows:

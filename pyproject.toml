@@ -1,5 +1,5 @@
 [project]
-name = "pg-airman-mcp"
+name = "pgpacer"
 version = "1.1.1"
 description = "PostgreSQL Tuning and Analysis Tool"
 readme = "README.md"
@@ -20,23 +20,15 @@ license = "mit"
 license-files = ["LICENSE"]
 
 [[project.authors]]
-name = "Johann Schleier-Smith"
-email = "jssmith@crystal.cloud"
-
-[[project.authors]]
-name = "Giulio Calacoci"
-email = "giulio.calacoci@enterprisedb.com"
-
-[[project.authors]]
-name = "Bilge Ince"
-email = "bilge.ince@enterprisedb.com"
+name = "Ayse Bilge Gunduz"
+email = "aysebilgegunduz@gmail.com"
 
 [build-system]
 requires = [ "hatchling",]
 build-backend = "hatchling.build"
 
 [project.scripts]
-pg-airman-mcp = "pg_airman_mcp:main"
+pgpacer = "pgpacer:main"
 
 # [tool.pyright]
 # venvPath = "."
@@ -88,7 +80,7 @@ docstring-code-line-length = 88
 convention = "google"
 
 [tool.ruff.lint.isort]
-known-first-party = ["pg-airman-mcp"]
+known-first-party = ["pgpacer"]
 
 [tool.pyright]
 typeCheckingMode = "standard"

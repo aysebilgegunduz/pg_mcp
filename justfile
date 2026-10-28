@@ -3,7 +3,7 @@ set shell := ["zsh", "-cu"]
 set fallback
 
 # Default docker image name
-docker_image := "pg-airman-mcp"
+docker_image := "pgpacer"
 
 # Default: list all recipes
 default:
@@ -17,11 +17,11 @@ sync:
 
 # Run the MCP server with the Inspector (dev mode)
 dev:
-  uv run mcp dev -e . src/pg_airman_mcp/server.py
+  uv run mcp dev -e . src/pgpacer/server.py
 
 # Run the MCP server via CLI (requires database_url)
 run database_url *args:
-  uv run pg-airman-mcp "{{database_url}}" {{args}}
+  uv run pgpacer "{{database_url}}" {{args}}
 
 # ── Code Quality ─────────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ test-integration *args:
 
 # Run tests with full coverage reporting (CI-equivalent)
 test-coverage:
-  uv run pytest -v --log-cli-level=INFO --cov-report=xml:coverage.xml --junitxml=pytest.xml --cov src/pg_airman_mcp/ --cov-report term tests/
+  uv run pytest -v --log-cli-level=INFO --cov-report=xml:coverage.xml --junitxml=pytest.xml --cov src/pgpacer/ --cov-report term tests/
 
 # ── Docker ───────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ release version note extra="":
     echo "Error: Do not include 'v' prefix in version. It will be added automatically."
     exit 1
   fi
-  uv build && git tag -a "v{{version}}" -m "Release v{{version}}" || true && git push --tags && gh release create "v{{version}}" --title "PG Airman MCP v{{version}}" --notes "{{note}}" {{extra}} dist/*.whl dist/*.tar.gz
+  uv build && git tag -a "v{{version}}" -m "Release v{{version}}" || true && git push --tags && gh release create "v{{version}}" --title "pgpacer v{{version}}" --notes "{{note}}" {{extra}} dist/*.whl dist/*.tar.gz
 
 # Create a pre-release (version format: 0.0.0, rc number, note)
 prerelease version rc note:

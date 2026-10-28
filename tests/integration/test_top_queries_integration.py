@@ -3,8 +3,8 @@ import logging
 import pytest
 import pytest_asyncio
 
-from pg_airman_mcp.sql import SqlDriver
-from pg_airman_mcp.top_queries import PG_STAT_STATEMENTS, TopQueriesCalc
+from pgpacer.sql import SqlDriver
+from pgpacer.top_queries import PG_STAT_STATEMENTS, TopQueriesCalc
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +174,8 @@ async def test_extension_not_available(local_sql_driver):
     # Need to patch at the module level for proper mocking
     with pytest.MonkeyPatch().context() as mp:
         # Import the module we'll be monkeypatching
-        import pg_airman_mcp.sql.extension_utils
-        from pg_airman_mcp.sql.extension_utils import ExtensionStatus
+        import pgpacer.sql.extension_utils
+        from pgpacer.sql.extension_utils import ExtensionStatus
 
         # Define our mock function with the correct type signature
         async def mock_check(*args, **kwargs):
@@ -189,9 +189,7 @@ async def test_extension_not_available(local_sql_driver):
 
         # Replace the function with our mock
         # We need to patch the actual function imported by TopQueriesCalc
-        mp.setattr(
-            pg_airman_mcp.top_queries.top_queries_calc, "check_extension", mock_check
-        )
+        mp.setattr(pgpacer.top_queries.top_queries_calc, "check_extension", mock_check)
 
         # Run the test
         result = await calc.get_top_queries_by_time()

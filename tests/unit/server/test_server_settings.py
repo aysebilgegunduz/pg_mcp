@@ -1,12 +1,18 @@
 """Unit tests for ServerSettings and server configuration."""
 
+import logging
 import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
 
-from pg_airman_mcp.server import AccessMode, ServerSettings, create_mcp_server
+from pgpacer.server import (
+    AccessMode,
+    ServerSettings,
+    create_mcp_server,
+    warn_legacy_env_vars,
+)
 
 
 class TestServerSettings:
@@ -62,14 +68,14 @@ class TestServerSettings:
         assert settings.auth_server_url == "http://auth.example.com"
 
     def test_env_prefix(self):
-        """Test that environment variables use AIRMAN_MCP_ prefix."""
+        """Test that environment variables use PGPACER_ prefix."""
         with patch.dict(
             os.environ,
             {
-                "AIRMAN_MCP_DATABASE_URL": "postgresql://env:pass@localhost/envdb",
-                "AIRMAN_MCP_ACCESS_MODE": "restricted",
-                "AIRMAN_MCP_TRANSPORT": "sse",
-                "AIRMAN_MCP_AUTH_ENABLED": "true",
+                "PGPACER_DATABASE_URL": "postgresql://env:pass@localhost/envdb",
+                "PGPACER_ACCESS_MODE": "restricted",
+                "PGPACER_TRANSPORT": "sse",
+                "PGPACER_AUTH_ENABLED": "true",
             },
         ):
             settings = ServerSettings()
@@ -126,20 +132,20 @@ class TestServerSettings:
         assert "auth_type must be one of" in str(exc.value)
 
     def test_auth_type_env_var(self):
-        """Test AIRMAN_MCP_AUTH_TYPE environment variable works."""
-        with patch.dict(os.environ, {"AIRMAN_MCP_AUTH_TYPE": "jwt"}):
+        """Test PGPACER_AUTH_TYPE environment variable works."""
+        with patch.dict(os.environ, {"PGPACER_AUTH_TYPE": "jwt"}):
             settings = ServerSettings()
             assert settings.auth_type == "jwt"
 
     def test_jwt_env_vars(self):
         """Test JWT-specific environment variables are loaded correctly."""
         env_vars = {
-            "AIRMAN_MCP_JWT_JWKS_URL": "http://auth.test/jwks",
-            "AIRMAN_MCP_JWT_ISSUER": "http://auth.test",
-            "AIRMAN_MCP_JWT_AUDIENCE": "http://resource.test",
-            "AIRMAN_MCP_JWT_ALGORITHMS": "ES256,RS384",
-            "AIRMAN_MCP_JWT_CLOCK_SKEW": "45",
-            "AIRMAN_MCP_JWT_JWKS_CACHE_TTL": "120",
+            "PGPACER_JWT_JWKS_URL": "http://auth.test/jwks",
+            "PGPACER_JWT_ISSUER": "http://auth.test",
+            "PGPACER_JWT_AUDIENCE": "http://resource.test",
+            "PGPACER_JWT_ALGORITHMS": "ES256,RS384",
+            "PGPACER_JWT_CLOCK_SKEW": "45",
+            "PGPACER_JWT_JWKS_CACHE_TTL": "120",
         }
         with patch.dict(os.environ, env_vars):
             settings = ServerSettings()
@@ -269,16 +275,14 @@ class TestCreateMcpServer:
 
     def test_creates_unauthenticated_server(self):
         """Test creating server without authentication."""
-        with patch("pg_airman_mcp.server.FastMCP") as mock_fastmcp:
+        with patch("pgpacer.server.FastMCP") as mock_fastmcp:
             mock_instance = MagicMock()
             mock_fastmcp.return_value = mock_instance
 
             server = create_mcp_server(auth_context=None)
 
             # Should create FastMCP without auth parameters
-            mock_fastmcp.assert_called_once_with(
-                "pg-airman-mcp", transport_security=None
-            )
+            mock_fastmcp.assert_called_once_with("pgpacer", transport_security=None)
             assert server == mock_instance
 
             # Should register 22 tools (execute_sql added separately in main)
@@ -286,9 +290,9 @@ class TestCreateMcpServer:
 
     def test_creates_authenticated_server(self):
         """Test creating server with AuthContext."""
-        from pg_airman_mcp.auth_config import AuthContext
+        from pgpacer.auth_config import AuthContext
 
-        with patch("pg_airman_mcp.server.FastMCP") as mock_fastmcp:
+        with patch("pgpacer.server.FastMCP") as mock_fastmcp:
             mock_instance = MagicMock()
             mock_fastmcp.return_value = mock_instance
 
@@ -313,7 +317,7 @@ class TestCreateMcpServer:
 
     def test_tool_registration_list(self):
         """Test that all expected tools are registered."""
-        with patch("pg_airman_mcp.server.FastMCP") as mock_fastmcp:
+        with patch("pgpacer.server.FastMCP") as mock_fastmcp:
             mock_instance = MagicMock()
             mock_fastmcp.return_value = mock_instance
 
@@ -346,7 +350,7 @@ class TestCreateMcpServer:
         """Test transport_security is forwarded to FastMCP constructor."""
         from mcp.server.transport_security import TransportSecuritySettings
 
-        with patch("pg_airman_mcp.server.FastMCP") as mock_fastmcp:
+        with patch("pgpacer.server.FastMCP") as mock_fastmcp:
             mock_instance = MagicMock()
             mock_fastmcp.return_value = mock_instance
 
@@ -362,24 +366,24 @@ class TestCreateMcpServer:
 class TestServerSettingsEnvironmentIntegration:
     """Test ServerSettings environment variable integration."""
 
-    def test_all_env_vars_use_airman_mcp_prefix(self):
-        """Test all environment variables use AIRMAN_MCP_ prefix."""
+    def test_all_env_vars_use_pgpacer_prefix(self):
+        """Test all environment variables use PGPACER_ prefix."""
         env_vars = {
-            "AIRMAN_MCP_DATABASE_URL": "postgresql://test:pass@host/db",
-            "AIRMAN_MCP_ACCESS_MODE": "restricted",
-            "AIRMAN_MCP_TRANSPORT": "sse",
-            "AIRMAN_MCP_SSE_HOST": "custom.host",
-            "AIRMAN_MCP_SSE_PORT": "9000",
-            "AIRMAN_MCP_STREAMABLE_HTTP_HOST": "stream.host",
-            "AIRMAN_MCP_STREAMABLE_HTTP_PORT": "9001",
-            "AIRMAN_MCP_AUTH_ENABLED": "true",
-            "AIRMAN_MCP_AUTH_SERVER_URL": "http://auth.test",
-            "AIRMAN_MCP_AUTH_INTROSPECTION_ENDPOINT": "http://auth.test/check",
-            "AIRMAN_MCP_AUTH_REQUIRED_SCOPES": "read,write",
-            "AIRMAN_MCP_AUTH_VALIDATE_RESOURCE": "true",
-            "AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_ID": "my-client",
-            "AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_SECRET": "my-secret",
-            "AIRMAN_MCP_SERVER_URL": "http://resource.test",
+            "PGPACER_DATABASE_URL": "postgresql://test:pass@host/db",
+            "PGPACER_ACCESS_MODE": "restricted",
+            "PGPACER_TRANSPORT": "sse",
+            "PGPACER_SSE_HOST": "custom.host",
+            "PGPACER_SSE_PORT": "9000",
+            "PGPACER_STREAMABLE_HTTP_HOST": "stream.host",
+            "PGPACER_STREAMABLE_HTTP_PORT": "9001",
+            "PGPACER_AUTH_ENABLED": "true",
+            "PGPACER_AUTH_SERVER_URL": "http://auth.test",
+            "PGPACER_AUTH_INTROSPECTION_ENDPOINT": "http://auth.test/check",
+            "PGPACER_AUTH_REQUIRED_SCOPES": "read,write",
+            "PGPACER_AUTH_VALIDATE_RESOURCE": "true",
+            "PGPACER_AUTH_INTROSPECTION_CLIENT_ID": "my-client",
+            "PGPACER_AUTH_INTROSPECTION_CLIENT_SECRET": "my-secret",
+            "PGPACER_SERVER_URL": "http://resource.test",
         }
 
         with patch.dict(os.environ, env_vars, clear=True):
@@ -430,12 +434,12 @@ class TestServerSettingsEnvironmentIntegration:
             settings = ServerSettings()
             assert settings.database_url == "postgresql://fallback:pass@host/db"
 
-    def test_airman_mcp_database_url_takes_priority_over_database_uri(self):
-        """Test that AIRMAN_MCP_DATABASE_URL takes priority over DATABASE_URI."""
+    def test_pgpacer_database_url_takes_priority_over_database_uri(self):
+        """Test that PGPACER_DATABASE_URL takes priority over DATABASE_URI."""
         with patch.dict(
             os.environ,
             {
-                "AIRMAN_MCP_DATABASE_URL": "postgresql://primary:pass@host/db",
+                "PGPACER_DATABASE_URL": "postgresql://primary:pass@host/db",
                 "DATABASE_URI": "postgresql://fallback:pass@host/db",
             },
             clear=True,
@@ -448,8 +452,8 @@ class TestServerSettingsEnvironmentIntegration:
         with patch.dict(
             os.environ,
             {
-                "airman_mcp_access_mode": "restricted",
-                "AIRMAN_MCP_TRANSPORT": "sse",
+                "pgpacer_access_mode": "restricted",
+                "PGPACER_TRANSPORT": "sse",
             },
         ):
             settings = ServerSettings()
@@ -560,7 +564,7 @@ class TestBuildTransportSecurity:
         with patch.dict(
             os.environ,
             {
-                "AIRMAN_MCP_DNS_REBINDING_PROTECTION": "false",
+                "PGPACER_DNS_REBINDING_PROTECTION": "false",
             },
         ):
             settings = ServerSettings()
@@ -574,7 +578,7 @@ class TestBuildTransportSecurity:
         with patch.dict(
             os.environ,
             {
-                "AIRMAN_MCP_ALLOWED_HOSTS": "svc:*,localhost:*",
+                "PGPACER_ALLOWED_HOSTS": "svc:*,localhost:*",
             },
         ):
             settings = ServerSettings()
@@ -583,3 +587,68 @@ class TestBuildTransportSecurity:
             assert result is not None
             assert result.enable_dns_rebinding_protection is True
             assert result.allowed_hosts == ["svc:*", "localhost:*"]
+
+
+class TestLegacyAirmanEnvironmentVariables:
+    """The pre-rename AIRMAN_MCP_* names keep working, with a warning."""
+
+    def test_legacy_names_still_apply(self):
+        """Un-migrated deployments must not silently lose restricted mode/auth."""
+        env = {
+            "AIRMAN_MCP_DATABASE_URL": "postgresql://legacy@host/db",
+            "AIRMAN_MCP_ACCESS_MODE": "restricted",
+            "AIRMAN_MCP_AUTH_ENABLED": "true",
+            "AIRMAN_MCP_EMBEDDING_API_KEY": "sk-legacy",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            settings = ServerSettings()
+
+        assert settings.database_url == "postgresql://legacy@host/db"
+        assert settings.access_mode == "restricted"
+        assert settings.auth_enabled is True
+        assert settings.embedding_api_key is not None
+        assert settings.embedding_api_key.get_secret_value() == "sk-legacy"
+
+    def test_new_names_take_precedence(self):
+        env = {
+            "PGPACER_DATABASE_URL": "postgresql://new@host/db",
+            "AIRMAN_MCP_DATABASE_URL": "postgresql://old@host/db",
+            "PGPACER_TRANSPORT": "sse",
+            "AIRMAN_MCP_TRANSPORT": "streamable-http",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            settings = ServerSettings()
+
+        assert settings.database_url == "postgresql://new@host/db"
+        assert settings.transport == "sse"
+
+    def test_legacy_database_url_beats_database_uri(self):
+        env = {
+            "AIRMAN_MCP_DATABASE_URL": "postgresql://legacy@host/db",
+            "DATABASE_URI": "postgresql://ancient@host/db",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            assert ServerSettings().database_url == "postgresql://legacy@host/db"
+
+    def test_warning_names_replacements_but_never_values(self, caplog):
+        env = {
+            "AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_SECRET": "s3cret-value",
+            "AIRMAN_MCP_ACCESS_MODE": "restricted",
+            "PGPACER_ACCESS_MODE": "restricted",
+            "UNRELATED": "x",
+        }
+        with caplog.at_level(logging.WARNING, logger="pgpacer.server"):
+            legacy = warn_legacy_env_vars(env)
+
+        assert legacy == [
+            "AIRMAN_MCP_ACCESS_MODE",
+            "AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_SECRET",
+        ]
+        assert "rename it to PGPACER_AUTH_INTROSPECTION_CLIENT_SECRET" in caplog.text
+        assert "PGPACER_ACCESS_MODE is also set and takes precedence" in caplog.text
+        assert "s3cret-value" not in caplog.text
+
+    def test_no_warning_without_legacy_names(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="pgpacer.server"):
+            assert warn_legacy_env_vars({"PGPACER_ACCESS_MODE": "restricted"}) == []
+        assert caplog.text == ""

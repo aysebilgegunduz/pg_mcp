@@ -1,10 +1,10 @@
 # JWT Authentication Guide
 
-This guide covers JWT token verification for Pg Airman MCP, including when to use it, how to configure it, and provider-specific setup instructions.
+This guide covers JWT token verification for pgpacer, including when to use it, how to configure it, and provider-specific setup instructions.
 
 ## Choosing Between Introspection and JWT
 
-Pg Airman MCP supports two token verification methods. Choose based on your requirements:
+pgpacer supports two token verification methods. Choose based on your requirements:
 
 | Consideration | Introspection | JWT |
 |---|---|---|
@@ -21,12 +21,12 @@ Pg Airman MCP supports two token verification methods. Choose based on your requ
 ### Minimal JWT Configuration
 
 ```bash
-export AIRMAN_MCP_AUTH_ENABLED=true
-export AIRMAN_MCP_AUTH_TYPE=jwt
-export AIRMAN_MCP_AUTH_SERVER_URL=https://auth.example.com
-export AIRMAN_MCP_JWT_ISSUER=https://auth.example.com
+export PGPACER_AUTH_ENABLED=true
+export PGPACER_AUTH_TYPE=jwt
+export PGPACER_AUTH_SERVER_URL=https://auth.example.com
+export PGPACER_JWT_ISSUER=https://auth.example.com
 
-pg-airman-mcp "postgresql://..." --access-mode=restricted
+pgpacer "postgresql://..." --access-mode=restricted
 ```
 
 The JWKS URL defaults to `{auth-server-url}/.well-known/jwks.json` and the audience defaults to the server URL. These defaults work with most identity providers.
@@ -36,7 +36,7 @@ The JWKS URL defaults to `{auth-server-url}/.well-known/jwks.json` and the audie
 All JWT settings are also available as CLI arguments:
 
 ```bash
-pg-airman-mcp "postgresql://..." \
+pgpacer "postgresql://..." \
   --auth-enabled \
   --auth-type jwt \
   --auth-server-url https://auth.example.com \
@@ -51,13 +51,13 @@ pg-airman-mcp "postgresql://..." \
 
 | Variable | CLI Argument | Description | Default |
 |---|---|---|---|
-| `AIRMAN_MCP_AUTH_TYPE` | `--auth-type` | Set to `jwt` for JWT verification | `introspection` |
-| `AIRMAN_MCP_JWT_ISSUER` | `--jwt-issuer` | Expected `iss` claim (required) | *(none)* |
-| `AIRMAN_MCP_JWT_JWKS_URL` | `--jwt-jwks-url` | JWKS endpoint URL | `{auth-server-url}/.well-known/jwks.json` |
-| `AIRMAN_MCP_JWT_AUDIENCE` | `--jwt-audience` | Expected `aud` claim | *(server URL)* |
-| `AIRMAN_MCP_JWT_ALGORITHMS` | `--jwt-algorithms` | Comma-separated signing algorithms | `RS256` |
-| `AIRMAN_MCP_JWT_CLOCK_SKEW` | `--jwt-clock-skew` | Clock skew tolerance (seconds) | `30` |
-| `AIRMAN_MCP_JWT_JWKS_CACHE_TTL` | `--jwt-jwks-cache-ttl` | JWKS cache TTL (seconds) | `300` |
+| `PGPACER_AUTH_TYPE` | `--auth-type` | Set to `jwt` for JWT verification | `introspection` |
+| `PGPACER_JWT_ISSUER` | `--jwt-issuer` | Expected `iss` claim (required) | *(none)* |
+| `PGPACER_JWT_JWKS_URL` | `--jwt-jwks-url` | JWKS endpoint URL | `{auth-server-url}/.well-known/jwks.json` |
+| `PGPACER_JWT_AUDIENCE` | `--jwt-audience` | Expected `aud` claim | *(server URL)* |
+| `PGPACER_JWT_ALGORITHMS` | `--jwt-algorithms` | Comma-separated signing algorithms | `RS256` |
+| `PGPACER_JWT_CLOCK_SKEW` | `--jwt-clock-skew` | Clock skew tolerance (seconds) | `30` |
+| `PGPACER_JWT_JWKS_CACHE_TTL` | `--jwt-jwks-cache-ttl` | JWKS cache TTL (seconds) | `300` |
 
 ## Provider-Specific Examples
 
@@ -66,44 +66,44 @@ pg-airman-mcp "postgresql://..." \
 Keycloak exposes a standard JWKS endpoint per realm.
 
 ```bash
-AIRMAN_MCP_AUTH_ENABLED=true
-AIRMAN_MCP_AUTH_TYPE=jwt
-AIRMAN_MCP_AUTH_SERVER_URL=https://keycloak.example.com/realms/myrealm
-AIRMAN_MCP_JWT_ISSUER=https://keycloak.example.com/realms/myrealm
-AIRMAN_MCP_JWT_JWKS_URL=https://keycloak.example.com/realms/myrealm/protocol/openid-connect/certs
+PGPACER_AUTH_ENABLED=true
+PGPACER_AUTH_TYPE=jwt
+PGPACER_AUTH_SERVER_URL=https://keycloak.example.com/realms/myrealm
+PGPACER_JWT_ISSUER=https://keycloak.example.com/realms/myrealm
+PGPACER_JWT_JWKS_URL=https://keycloak.example.com/realms/myrealm/protocol/openid-connect/certs
 ```
 
 **JWKS URL pattern**: `https://<host>/realms/<realm>/protocol/openid-connect/certs`
 
-> **Note**: Keycloak's JWKS endpoint path does not follow the `.well-known/jwks.json` convention, so you must set `AIRMAN_MCP_JWT_JWKS_URL` explicitly.
+> **Note**: Keycloak's JWKS endpoint path does not follow the `.well-known/jwks.json` convention, so you must set `PGPACER_JWT_JWKS_URL` explicitly.
 
 ### Auth0
 
 Auth0 uses a tenant-based URL structure.
 
 ```bash
-AIRMAN_MCP_AUTH_ENABLED=true
-AIRMAN_MCP_AUTH_TYPE=jwt
-AIRMAN_MCP_AUTH_SERVER_URL=https://mytenant.auth0.com
-AIRMAN_MCP_JWT_ISSUER=https://mytenant.auth0.com/
-AIRMAN_MCP_JWT_AUDIENCE=https://mcp.example.com
+PGPACER_AUTH_ENABLED=true
+PGPACER_AUTH_TYPE=jwt
+PGPACER_AUTH_SERVER_URL=https://mytenant.auth0.com
+PGPACER_JWT_ISSUER=https://mytenant.auth0.com/
+PGPACER_JWT_AUDIENCE=https://mcp.example.com
 ```
 
 **JWKS URL pattern**: `https://<tenant>.auth0.com/.well-known/jwks.json` (default works)
 
-> **Note**: Auth0 issuers include a trailing slash. Ensure `AIRMAN_MCP_JWT_ISSUER` matches exactly.
+> **Note**: Auth0 issuers include a trailing slash. Ensure `PGPACER_JWT_ISSUER` matches exactly.
 
 ### Microsoft Entra ID (Azure AD)
 
 Entra ID uses a tenant-specific discovery endpoint.
 
 ```bash
-AIRMAN_MCP_AUTH_ENABLED=true
-AIRMAN_MCP_AUTH_TYPE=jwt
-AIRMAN_MCP_AUTH_SERVER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
-AIRMAN_MCP_JWT_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
-AIRMAN_MCP_JWT_JWKS_URL=https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
-AIRMAN_MCP_JWT_AUDIENCE=<application-client-id>
+PGPACER_AUTH_ENABLED=true
+PGPACER_AUTH_TYPE=jwt
+PGPACER_AUTH_SERVER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
+PGPACER_JWT_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
+PGPACER_JWT_JWKS_URL=https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
+PGPACER_JWT_AUDIENCE=<application-client-id>
 ```
 
 **JWKS URL pattern**: `https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys`
@@ -177,22 +177,22 @@ The verifier extracts the following from validated tokens:
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-e", "AIRMAN_MCP_DATABASE_URL",
-        "-e", "AIRMAN_MCP_AUTH_ENABLED",
-        "-e", "AIRMAN_MCP_AUTH_TYPE",
-        "-e", "AIRMAN_MCP_AUTH_SERVER_URL",
-        "-e", "AIRMAN_MCP_JWT_ISSUER",
-        "-e", "AIRMAN_MCP_SERVER_URL",
-        "enterprisedb/pg-airman-mcp",
+        "-e", "PGPACER_DATABASE_URL",
+        "-e", "PGPACER_AUTH_ENABLED",
+        "-e", "PGPACER_AUTH_TYPE",
+        "-e", "PGPACER_AUTH_SERVER_URL",
+        "-e", "PGPACER_JWT_ISSUER",
+        "-e", "PGPACER_SERVER_URL",
+        "pgpacer",
         "--access-mode=restricted"
       ],
       "env": {
-        "AIRMAN_MCP_DATABASE_URL": "postgresql://user:pass@localhost:5432/dbname",
-        "AIRMAN_MCP_AUTH_ENABLED": "true",
-        "AIRMAN_MCP_AUTH_TYPE": "jwt",
-        "AIRMAN_MCP_AUTH_SERVER_URL": "https://auth.example.com",
-        "AIRMAN_MCP_JWT_ISSUER": "https://auth.example.com",
-        "AIRMAN_MCP_SERVER_URL": "http://localhost:8000"
+        "PGPACER_DATABASE_URL": "postgresql://user:pass@localhost:5432/dbname",
+        "PGPACER_AUTH_ENABLED": "true",
+        "PGPACER_AUTH_TYPE": "jwt",
+        "PGPACER_AUTH_SERVER_URL": "https://auth.example.com",
+        "PGPACER_JWT_ISSUER": "https://auth.example.com",
+        "PGPACER_SERVER_URL": "http://localhost:8000"
       }
     }
   }
@@ -203,12 +203,12 @@ The verifier extracts the following from validated tokens:
 
 ```bash
 docker run -p 8000:8000 \
-  -e AIRMAN_MCP_DATABASE_URL=postgresql://user:pass@localhost:5432/dbname \
-  -e AIRMAN_MCP_AUTH_ENABLED=true \
-  -e AIRMAN_MCP_AUTH_TYPE=jwt \
-  -e AIRMAN_MCP_AUTH_SERVER_URL=https://auth.example.com \
-  -e AIRMAN_MCP_JWT_ISSUER=https://auth.example.com \
-  enterprisedb/pg-airman-mcp --access-mode=restricted --transport=sse
+  -e PGPACER_DATABASE_URL=postgresql://user:pass@localhost:5432/dbname \
+  -e PGPACER_AUTH_ENABLED=true \
+  -e PGPACER_AUTH_TYPE=jwt \
+  -e PGPACER_AUTH_SERVER_URL=https://auth.example.com \
+  -e PGPACER_JWT_ISSUER=https://auth.example.com \
+  pgpacer --access-mode=restricted --transport=sse
 ```
 
 ## Migrating from Introspection to JWT
@@ -222,13 +222,13 @@ If you are currently using token introspection and want to switch to JWT:
 3. **Update configuration**:
    ```bash
    # Remove introspection-specific settings
-   # unset AIRMAN_MCP_AUTH_INTROSPECTION_ENDPOINT
-   # unset AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_ID
-   # unset AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_SECRET
+   # unset PGPACER_AUTH_INTROSPECTION_ENDPOINT
+   # unset PGPACER_AUTH_INTROSPECTION_CLIENT_ID
+   # unset PGPACER_AUTH_INTROSPECTION_CLIENT_SECRET
 
    # Add JWT settings
-   export AIRMAN_MCP_AUTH_TYPE=jwt
-   export AIRMAN_MCP_JWT_ISSUER=https://auth.example.com
+   export PGPACER_AUTH_TYPE=jwt
+   export PGPACER_JWT_ISSUER=https://auth.example.com
    # JWKS URL defaults to {auth-server-url}/.well-known/jwks.json
    ```
 
@@ -240,8 +240,8 @@ If you are currently using token introspection and want to switch to JWT:
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| `401` on all requests | Wrong issuer or audience | Check `AIRMAN_MCP_JWT_ISSUER` matches the `iss` claim in your tokens exactly |
-| `JWT algorithm 'X' not in allowed list` in logs | Token signed with unexpected algorithm | Add the algorithm to `AIRMAN_MCP_JWT_ALGORITHMS` |
-| `No matching JWKS key for kid=X` | JWKS endpoint not serving the expected key | Verify `AIRMAN_MCP_JWT_JWKS_URL` is correct and accessible |
+| `401` on all requests | Wrong issuer or audience | Check `PGPACER_JWT_ISSUER` matches the `iss` claim in your tokens exactly |
+| `JWT algorithm 'X' not in allowed list` in logs | Token signed with unexpected algorithm | Add the algorithm to `PGPACER_JWT_ALGORITHMS` |
+| `No matching JWKS key for kid=X` | JWKS endpoint not serving the expected key | Verify `PGPACER_JWT_JWKS_URL` is correct and accessible |
 | `JWKS URL fails SSRF validation` | HTTP URL pointing to non-localhost host | Use HTTPS or set URL to localhost for development |
-| `--jwt-issuer is required` | Missing issuer configuration | Set `AIRMAN_MCP_JWT_ISSUER` |
+| `--jwt-issuer is required` | Missing issuer configuration | Set `PGPACER_JWT_ISSUER` |

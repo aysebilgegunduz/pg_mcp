@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from pg_airman_mcp.sql import SafeSqlDriver, SqlDriver
+from pgpacer.sql import SafeSqlDriver, SqlDriver
 
 from .embeddings import EmbeddingProvider
 from .golden_query_tools import search_golden_queries_by_vector

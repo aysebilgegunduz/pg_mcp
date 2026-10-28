@@ -8,8 +8,8 @@ here instead of only at runtime in restricted mode.
 
 import pytest
 
-from pg_airman_mcp.semantics import catalog, golden_query_tools, knowledge_map_tools
-from pg_airman_mcp.sql import SafeSqlDriver, SqlDriver
+from pgpacer.semantics import catalog, golden_query_tools, knowledge_map_tools
+from pgpacer.sql import SafeSqlDriver, SqlDriver
 
 READ_QUERIES = {
     "knowledge_map search": knowledge_map_tools._SEARCH_SQL,

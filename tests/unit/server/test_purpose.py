@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from pg_airman_mcp.server import ServerSettings
+from pgpacer.server import ServerSettings
 
 
 class TestPurposeValidator:
@@ -115,21 +115,21 @@ class TestPurposeValidator:
             ServerSettings(purpose=value)
 
     def test_valid_at_max_length(self):
-        """47-character purpose fits within PG's 63-byte application_name limit."""
-        value = "a" * 47
+        """46-character purpose fits within PG's 63-byte application_name limit."""
+        value = "a" * 46
         s = ServerSettings(purpose=value)
         assert s.purpose == value
 
     def test_invalid_over_max_length(self):
-        """48-character purpose is rejected to avoid pg_stat_activity truncation."""
-        with pytest.raises(ValidationError, match="47 characters or fewer.*63-byte"):
-            ServerSettings(purpose="a" * 48)
+        """47-character purpose is rejected to avoid pg_stat_activity truncation."""
+        with pytest.raises(ValidationError, match="46 characters or fewer.*63-byte"):
+            ServerSettings(purpose="a" * 47)
 
     def test_max_length_keeps_application_name_within_63_bytes(self):
         """Composed application_name at max purpose length fits PG's limit."""
-        purpose = "a" * 47
+        purpose = "a" * 46
         session_short = "12345678"
-        app_name = f"airman:{purpose}/{session_short}"
+        app_name = f"pgpacer:{purpose}/{session_short}"
         assert len(app_name) == 63
 
 
@@ -139,12 +139,12 @@ class TestPurposeCLIArg:
     @pytest.mark.asyncio
     async def test_purpose_cli_overrides_default(self):
         """--purpose CLI arg sets settings.purpose."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch(
                 "sys.argv",
                 ["server.py", "postgresql://test", "--purpose", "credit-scoring"],
@@ -170,7 +170,7 @@ class TestPurposeCLIArg:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit) as exc:
@@ -181,8 +181,8 @@ class TestPurposeCLIArg:
 
     @pytest.mark.asyncio
     async def test_purpose_env_var(self, monkeypatch):
-        """AIRMAN_MCP_PURPOSE env var sets purpose when no CLI arg."""
-        monkeypatch.setenv("AIRMAN_MCP_PURPOSE", "my-purpose")
+        """PGPACER_PURPOSE env var sets purpose when no CLI arg."""
+        monkeypatch.setenv("PGPACER_PURPOSE", "my-purpose")
         s = ServerSettings()
         assert s.purpose == "my-purpose"
 
@@ -193,12 +193,12 @@ class TestPurposeConnectionURL:
     @pytest.mark.asyncio
     async def test_appends_application_name_no_query_string(self):
         """Appends ?application_name=<purpose> when URL has no query string."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch("sys.argv", ["server.py", "postgresql://localhost/testdb"]),
             patch("signal.signal"),
         ):
@@ -221,30 +221,30 @@ class TestPurposeConnectionURL:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit):
                     await main()
 
             # Verify pool_connect was called with the modified URL
-            # Format: airman:<purpose> (URL-encoded colon = %3A)
+            # Format: pgpacer:<purpose> (URL-encoded colon = %3A)
             call_args = mock_db.pool_connect.call_args
             url = call_args[0][0]
             assert (
                 url
-                == "postgresql://localhost/testdb?application_name=airman%3Acredit-scoring"
+                == "postgresql://localhost/testdb?application_name=pgpacer%3Acredit-scoring"
             )
 
     @pytest.mark.asyncio
     async def test_appends_application_name_with_existing_query_string(self):
         """Appends &application_name=<purpose> when URL already has query params."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch(
                 "sys.argv",
                 ["server.py", "postgresql://localhost/testdb?sslmode=require"],
@@ -272,28 +272,28 @@ class TestPurposeConnectionURL:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit):
                     await main()
 
-            # Format: airman:<purpose> (URL-encoded colon = %3A)
+            # Format: pgpacer:<purpose> (URL-encoded colon = %3A)
             url = mock_db.pool_connect.call_args[0][0]
             assert url == (
                 "postgresql://localhost/testdb"
-                "?sslmode=require&application_name=airman%3Acredit-scoring"
+                "?sslmode=require&application_name=pgpacer%3Acredit-scoring"
             )
 
     @pytest.mark.asyncio
     async def test_no_append_when_purpose_is_none(self):
         """No application_name appended when purpose is None."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
             patch("sys.argv", ["server.py", "postgresql://localhost/testdb"]),
             patch("signal.signal"),
         ):
@@ -316,7 +316,7 @@ class TestPurposeConnectionURL:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit):
@@ -329,13 +329,13 @@ class TestPurposeConnectionURL:
     @pytest.mark.asyncio
     async def test_purpose_value_is_passed_through_quote(self):
         """Purpose value is passed through urllib.parse.quote in connection URL."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
-            patch("pg_airman_mcp.server.quote", return_value="app-v2") as mock_quote,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
+            patch("pgpacer.server.quote", return_value="app-v2") as mock_quote,
             patch("sys.argv", ["server.py", "postgresql://localhost/testdb"]),
             patch("signal.signal"),
         ):
@@ -358,27 +358,27 @@ class TestPurposeConnectionURL:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit):
                     await main()
 
-            # Verify quote() was called with the airman-prefixed purpose value
-            mock_quote.assert_called_once_with("airman:app-v2")
+            # Verify quote() was called with the pgpacer-prefixed purpose value
+            mock_quote.assert_called_once_with("pgpacer:app-v2")
             url = mock_db.pool_connect.call_args[0][0]
             assert "application_name=app-v2" in url
 
     @pytest.mark.asyncio
     async def test_purpose_logs_at_startup(self):
         """Purpose injection logs an info message."""
-        from pg_airman_mcp.server import main
+        from pgpacer.server import main
 
         with (
-            patch("pg_airman_mcp.server.ServerSettings") as mock_settings,
-            patch("pg_airman_mcp.server.create_mcp_server") as mock_create,
-            patch("pg_airman_mcp.server.db_connection") as mock_db,
-            patch("pg_airman_mcp.server.logger") as mock_logger,
+            patch("pgpacer.server.ServerSettings") as mock_settings,
+            patch("pgpacer.server.create_mcp_server") as mock_create,
+            patch("pgpacer.server.db_connection") as mock_db,
+            patch("pgpacer.server.logger") as mock_logger,
             patch("sys.argv", ["server.py", "postgresql://localhost/testdb"]),
             patch("signal.signal"),
         ):
@@ -401,7 +401,7 @@ class TestPurposeConnectionURL:
             mock_db.pool_connect = AsyncMock()
             mock_db.close = AsyncMock()
 
-            with patch("pg_airman_mcp.server.shutdown_event") as mock_event:
+            with patch("pgpacer.server.shutdown_event") as mock_event:
                 mock_event.is_set = MagicMock(side_effect=[False, True])
 
                 with pytest.raises(SystemExit):

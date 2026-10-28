@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 EMBEDDING_PROVIDERS = ("openai", "hash")
 
-HASH_MODEL_NAME = "airman-hash-v1"
+HASH_MODEL_NAME = "pgpacer-hash-v1"
 DEFAULT_HASH_DIMENSIONS = 512
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 
@@ -197,7 +197,7 @@ class OpenAICompatibleEmbeddingProvider(EmbeddingProvider):
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
-            headers = {"User-Agent": "pg-airman-mcp"}
+            headers = {"User-Agent": "pgpacer"}
             if self._api_key:
                 headers["Authorization"] = f"Bearer {self._api_key}"
             self._client = httpx.AsyncClient(
@@ -259,7 +259,7 @@ def _build_endpoint(base_url: str, has_api_key: bool) -> str:
     if parsed.username or parsed.password:
         raise ValueError(
             "Embedding base URL must not embed credentials; "
-            "use AIRMAN_MCP_EMBEDDING_API_KEY instead"
+            "use PGPACER_EMBEDDING_API_KEY instead"
         )
     if parsed.scheme == "http" and parsed.hostname not in _LOOPBACK_HOSTS:
         if has_api_key:
@@ -421,7 +421,7 @@ def create_embedding_provider(
     if name == "openai":
         if not model:
             raise ValueError(
-                "AIRMAN_MCP_EMBEDDING_MODEL is required for the 'openai' embedding "
+                "PGPACER_EMBEDDING_MODEL is required for the 'openai' embedding "
                 "provider (e.g. text-embedding-3-small, nomic-embed-text)"
             )
         if timeout <= 0:

@@ -3,9 +3,9 @@ import logging
 
 import pytest
 
-from pg_airman_mcp.artifacts import ErrorResult, ExplainPlanArtifact
-from pg_airman_mcp.explain import ExplainPlanTool
-from pg_airman_mcp.sql import SqlDriver
+from pgpacer.artifacts import ErrorResult, ExplainPlanArtifact
+from pgpacer.explain import ExplainPlanTool
+from pgpacer.sql import SqlDriver
 
 logger = logging.getLogger(__name__)
 

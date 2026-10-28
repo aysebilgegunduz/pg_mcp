@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pg_airman_mcp.auth_config import (
+from pgpacer.auth_config import (
     VALID_AUTH_TYPES,
     AuthContext,
     JwtConfig,
@@ -16,11 +16,11 @@ from pg_airman_mcp.auth_config import (
 
 # Mock path for IntrospectionTokenVerifier (lazy import inside
 # _create_introspection_verifier via ``from .token_verifier import ...``)
-_INTROSPECTION_MOCK = "pg_airman_mcp.token_verifier.IntrospectionTokenVerifier"
+_INTROSPECTION_MOCK = "pgpacer.token_verifier.IntrospectionTokenVerifier"
 
 # Mock path for JwtTokenVerifier (lazy import inside
 # _create_jwt_verifier via ``from .jwt_verifier import ...``)
-_JWT_MOCK = "pg_airman_mcp.jwt_verifier.JwtTokenVerifier"
+_JWT_MOCK = "pgpacer.jwt_verifier.JwtTokenVerifier"
 
 
 class TestAuthContext:
@@ -128,7 +128,7 @@ class TestCreateAuthContext:
         """Test warning logged when introspection credentials not configured."""
         with (
             patch(_INTROSPECTION_MOCK) as mock_verifier,
-            patch("pg_airman_mcp.auth_config.logger") as mock_logger,
+            patch("pgpacer.auth_config.logger") as mock_logger,
         ):
             mock_verifier.return_value = MagicMock()
 
@@ -139,8 +139,8 @@ class TestCreateAuthContext:
 
             mock_logger.warning.assert_any_call(
                 "Introspection client credentials not configured. "
-                "Set AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_ID and "
-                "AIRMAN_MCP_AUTH_INTROSPECTION_CLIENT_SECRET for "
+                "Set PGPACER_AUTH_INTROSPECTION_CLIENT_ID and "
+                "PGPACER_AUTH_INTROSPECTION_CLIENT_SECRET for "
                 "authenticated introspection (RFC 7662 §2.1)."
             )
 
@@ -148,7 +148,7 @@ class TestCreateAuthContext:
         """Test no warning when both credentials are provided."""
         with (
             patch(_INTROSPECTION_MOCK) as mock_verifier,
-            patch("pg_airman_mcp.auth_config.logger") as mock_logger,
+            patch("pgpacer.auth_config.logger") as mock_logger,
         ):
             mock_verifier.return_value = MagicMock()
 
@@ -192,7 +192,7 @@ class TestCreateAuthContext:
         """Test that auth enabled info is logged."""
         with (
             patch(_INTROSPECTION_MOCK) as mock_verifier,
-            patch("pg_airman_mcp.auth_config.logger") as mock_logger,
+            patch("pgpacer.auth_config.logger") as mock_logger,
         ):
             mock_verifier.return_value = MagicMock()
 
@@ -340,7 +340,7 @@ class TestCreateAuthContext:
         """Test JWT-specific info is logged."""
         with (
             patch(_JWT_MOCK) as mock_jwt,
-            patch("pg_airman_mcp.auth_config.logger") as mock_logger,
+            patch("pgpacer.auth_config.logger") as mock_logger,
         ):
             mock_jwt.return_value = MagicMock()
 
@@ -409,7 +409,7 @@ class TestCreateAuthContext:
         """Test no introspection credentials warning for JWT auth type."""
         with (
             patch(_JWT_MOCK) as mock_jwt,
-            patch("pg_airman_mcp.auth_config.logger") as mock_logger,
+            patch("pgpacer.auth_config.logger") as mock_logger,
         ):
             mock_jwt.return_value = MagicMock()
 
@@ -432,7 +432,7 @@ class TestAddAuthCliArgs:
 
     def _make_parser_with_args(self) -> argparse.ArgumentParser:
         """Create a parser with auth CLI args registered."""
-        from pg_airman_mcp.server import ServerSettings
+        from pgpacer.server import ServerSettings
 
         parser = argparse.ArgumentParser()
         settings = ServerSettings()
@@ -477,7 +477,7 @@ class TestApplyAuthCliOverrides:
 
     def test_applies_auth_type(self):
         """Test auth_type is applied from CLI args."""
-        from pg_airman_mcp.server import ServerSettings
+        from pgpacer.server import ServerSettings
 
         settings = ServerSettings()
         args = argparse.Namespace(
@@ -501,7 +501,7 @@ class TestApplyAuthCliOverrides:
 
     def test_applies_jwt_settings(self):
         """Test all JWT settings are applied from CLI args."""
-        from pg_airman_mcp.server import ServerSettings
+        from pgpacer.server import ServerSettings
 
         settings = ServerSettings()
         args = argparse.Namespace(

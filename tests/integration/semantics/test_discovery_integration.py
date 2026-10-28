@@ -8,12 +8,12 @@ import pytest
 import pytest_asyncio
 from semantic_db import create_customer_schema, run_sql
 
-from pg_airman_mcp.semantics.discovery_tools import discover_schema_for_question
-from pg_airman_mcp.semantics.golden_query_tools import (
+from pgpacer.semantics.discovery_tools import discover_schema_for_question
+from pgpacer.semantics.golden_query_tools import (
     create_golden_query,
     delete_golden_query,
 )
-from pg_airman_mcp.semantics.knowledge_map_tools import (
+from pgpacer.semantics.knowledge_map_tools import (
     create_knowledge_map,
     delete_knowledge_map,
 )

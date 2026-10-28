@@ -5,7 +5,7 @@ import pytest
 from dotenv import load_dotenv
 from utils import create_postgres_container
 
-from pg_airman_mcp.sql import reset_postgres_version_cache
+from pgpacer.sql import reset_postgres_version_cache
 
 load_dotenv()
 

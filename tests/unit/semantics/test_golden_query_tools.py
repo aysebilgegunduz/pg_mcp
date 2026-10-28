@@ -7,22 +7,20 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fake_driver import FakeDriver, rows
 
-from pg_airman_mcp.semantics.embeddings import HashEmbeddingProvider
-from pg_airman_mcp.semantics.golden_query_tools import (
+from pgpacer.semantics.embeddings import HashEmbeddingProvider
+from pgpacer.semantics.golden_query_tools import (
     create_golden_query,
     delete_golden_query,
     execute_golden_query,
     list_golden_queries,
     search_golden_queries,
 )
-from pg_airman_mcp.sql import SafeSqlDriver
+from pgpacer.sql import SafeSqlDriver
 
-FLAG = (
-    "pg_airman_mcp.semantics.golden_query_tools.ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED"
-)
+FLAG = "pgpacer.semantics.golden_query_tools.ALLOW_GOLDEN_QUERY_WRITE_IN_RESTRICTED"
 MAP_ROW = {
     "name": "my_map",
-    "model_name": "airman-hash-v1",
+    "model_name": "pgpacer-hash-v1",
     "dimensions": 64,
     "schemas": ["public"],
     "refreshed_at": None,
@@ -57,15 +55,13 @@ class FakeRawCursor:
 def raw_cursor():
     FakeRawCursor.instances = []
     FakeRawCursor.result_rows = [{"id": 1, "email": "alice@example.com"}]
-    with patch(
-        "pg_airman_mcp.semantics.golden_query_tools.AsyncRawCursor", FakeRawCursor
-    ):
+    with patch("pgpacer.semantics.golden_query_tools.AsyncRawCursor", FakeRawCursor):
         yield FakeRawCursor
 
 
 INSTALLED = ("to_regclass", rows({"installed": True}))
 NOT_INSTALLED = ("to_regclass", rows({"installed": False}))
-MAP_LOOKUP = ("FROM airman_semantic.knowledge_maps", rows(MAP_ROW))
+MAP_LOOKUP = ("FROM pgpacer.knowledge_maps", rows(MAP_ROW))
 
 
 @pytest.fixture
@@ -88,7 +84,7 @@ async def test_create_golden_query_basic(embedder):
         [
             INSTALLED,
             MAP_LOOKUP,
-            ("INSERT INTO airman_semantic.golden_queries", rows({"name": "x"})),
+            ("INSERT INTO pgpacer.golden_queries", rows({"name": "x"})),
         ]
     )
 
@@ -109,7 +105,7 @@ async def test_create_golden_query_basic(embedder):
     assert params[0] == "monthly_revenue"
     assert params[1] == "Calculate total revenue by month"
     assert json.loads(params[3]) == []
-    assert params[4:6] == ["airman-hash-v1", 64]
+    assert params[4:6] == ["pgpacer-hash-v1", 64]
     assert params[6].startswith("[")
 
 
@@ -119,7 +115,7 @@ async def test_create_golden_query_with_parameters(embedder):
         [
             INSTALLED,
             MAP_LOOKUP,
-            ("INSERT INTO airman_semantic.golden_queries", rows({"name": "x"})),
+            ("INSERT INTO pgpacer.golden_queries", rows({"name": "x"})),
         ]
     )
 
@@ -146,7 +142,7 @@ async def test_create_golden_query_with_parameters(embedder):
 @pytest.mark.asyncio
 async def test_create_golden_query_duplicate(embedder):
     driver = FakeDriver(
-        [INSTALLED, MAP_LOOKUP, ("INSERT INTO airman_semantic.golden_queries", [])]
+        [INSTALLED, MAP_LOOKUP, ("INSERT INTO pgpacer.golden_queries", [])]
     )
 
     with pytest.raises(ValueError, match="'dup' already exists"):
@@ -199,7 +195,7 @@ async def test_create_golden_query_validates_before_db_access(
 @pytest.mark.asyncio
 async def test_delete_golden_query():
     driver = FakeDriver(
-        [INSTALLED, ("DELETE FROM airman_semantic.golden_queries", rows({"name": "x"}))]
+        [INSTALLED, ("DELETE FROM pgpacer.golden_queries", rows({"name": "x"}))]
     )
 
     result = await delete_golden_query(driver, "monthly_revenue")
@@ -210,7 +206,7 @@ async def test_delete_golden_query():
 
 @pytest.mark.asyncio
 async def test_delete_golden_query_not_found():
-    driver = FakeDriver([INSTALLED, ("DELETE FROM airman_semantic.golden_queries", [])])
+    driver = FakeDriver([INSTALLED, ("DELETE FROM pgpacer.golden_queries", [])])
 
     with pytest.raises(ValueError, match="not found"):
         await delete_golden_query(driver, "missing")
@@ -239,7 +235,7 @@ async def test_search_golden_queries_basic(embedder):
         "similarity": 0.85,
     }
     driver = FakeDriver(
-        [INSTALLED, MAP_LOOKUP, ("airman_semantic.golden_queries a", rows(match))]
+        [INSTALLED, MAP_LOOKUP, ("pgpacer.golden_queries a", rows(match))]
     )
 
     results = await search_golden_queries(
@@ -249,12 +245,12 @@ async def test_search_golden_queries_basic(embedder):
     assert results == [match]
     vector, dims, model, min_sim, limit = driver.last_params()
     assert vector.startswith("[")
-    assert (dims, model, min_sim, limit) == (64, "airman-hash-v1", 0.7, 10)
+    assert (dims, model, min_sim, limit) == (64, "pgpacer-hash-v1", 0.7, 10)
 
 
 @pytest.mark.asyncio
 async def test_search_golden_queries_map_not_found(embedder):
-    driver = FakeDriver([INSTALLED, ("FROM airman_semantic.knowledge_maps", [])])
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.knowledge_maps", [])])
 
     with pytest.raises(ValueError, match="Knowledge map 'missing_map' not found"):
         await search_golden_queries(driver, embedder, "missing_map", "query")
@@ -288,9 +284,7 @@ async def test_search_golden_queries_validates_inputs(embedder, kwargs, message)
 
 @pytest.mark.asyncio
 async def test_execute_golden_query_binds_values(raw_cursor):
-    driver = FakeDriver(
-        [INSTALLED, ("FROM airman_semantic.golden_queries", rows(EMAIL_QUERY))]
-    )
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.golden_queries", rows(EMAIL_QUERY))])
     payload = "alice@example.com' OR '1'='1"
 
     results = await execute_golden_query(
@@ -309,9 +303,7 @@ async def test_execute_golden_query_binds_values(raw_cursor):
 @pytest.mark.asyncio
 async def test_execute_golden_query_without_params(raw_cursor):
     stored = {"query_text": "SELECT id FROM customers", "parameters": []}
-    driver = FakeDriver(
-        [INSTALLED, ("FROM airman_semantic.golden_queries", rows(stored))]
-    )
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.golden_queries", rows(stored))])
 
     await execute_golden_query(driver, "all_customers")
 
@@ -323,9 +315,7 @@ async def test_execute_golden_query_without_params(raw_cursor):
 
 @pytest.mark.asyncio
 async def test_execute_golden_query_with_role_uses_quoted_identifier(raw_cursor):
-    driver = FakeDriver(
-        [INSTALLED, ("FROM airman_semantic.golden_queries", rows(EMAIL_QUERY))]
-    )
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.golden_queries", rows(EMAIL_QUERY))])
 
     await execute_golden_query(
         driver,
@@ -352,9 +342,7 @@ async def test_execute_golden_query_rejects_invalid_role(role):
 
 @pytest.mark.asyncio
 async def test_execute_golden_query_missing_parameter(raw_cursor):
-    driver = FakeDriver(
-        [INSTALLED, ("FROM airman_semantic.golden_queries", rows(EMAIL_QUERY))]
-    )
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.golden_queries", rows(EMAIL_QUERY))])
 
     with pytest.raises(ValueError, match="Missing value for parameter 'email'"):
         await execute_golden_query(driver, "customer_by_email", parameters={})
@@ -366,9 +354,7 @@ async def test_execute_golden_query_missing_parameter(raw_cursor):
 async def test_execute_golden_query_revalidates_stored_sql(raw_cursor):
     # A row tampered with directly in the database must not execute.
     tampered = {"query_text": "DELETE FROM customers", "parameters": []}
-    driver = FakeDriver(
-        [INSTALLED, ("FROM airman_semantic.golden_queries", rows(tampered))]
-    )
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.golden_queries", rows(tampered))])
 
     with pytest.raises(ValueError, match="must be a SELECT"):
         await execute_golden_query(driver, "tampered")
@@ -378,7 +364,7 @@ async def test_execute_golden_query_revalidates_stored_sql(raw_cursor):
 
 @pytest.mark.asyncio
 async def test_execute_golden_query_not_found():
-    driver = FakeDriver([INSTALLED, ("FROM airman_semantic.golden_queries", [])])
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.golden_queries", [])])
 
     with pytest.raises(ValueError, match="Golden query 'nope' not found"):
         await execute_golden_query(driver, "nope")
@@ -388,9 +374,7 @@ async def test_execute_golden_query_not_found():
 async def test_execute_golden_query_empty_results(raw_cursor):
     raw_cursor.result_rows = []
     stored = {"query_text": "SELECT 1 WHERE false", "parameters": []}
-    driver = FakeDriver(
-        [INSTALLED, ("FROM airman_semantic.golden_queries", rows(stored))]
-    )
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.golden_queries", rows(stored))])
 
     assert await execute_golden_query(driver, "empty_query") == []
 
@@ -447,7 +431,7 @@ async def test_execute_in_restricted_mode_sets_timeout_and_validates(
     driver, base = safe_sql_driver
     base.routes = [
         INSTALLED,
-        ("FROM airman_semantic.golden_queries", rows(EMAIL_QUERY)),
+        ("FROM pgpacer.golden_queries", rows(EMAIL_QUERY)),
     ]
 
     await execute_golden_query(
@@ -467,7 +451,7 @@ async def test_execute_in_restricted_mode_applies_function_allowlist(
 ):
     driver, base = safe_sql_driver
     stored = {"query_text": "SELECT pg_sleep(600)", "parameters": []}
-    base.routes = [INSTALLED, ("FROM airman_semantic.golden_queries", rows(stored))]
+    base.routes = [INSTALLED, ("FROM pgpacer.golden_queries", rows(stored))]
 
     with pytest.raises(ValueError, match="Error validating query"):
         await execute_golden_query(driver, "sleepy")
@@ -478,7 +462,7 @@ async def test_execute_in_restricted_mode_applies_function_allowlist(
 @pytest.mark.asyncio
 async def test_search_golden_queries_through_safe_driver(safe_sql_driver, embedder):
     driver, base = safe_sql_driver
-    base.routes = [INSTALLED, MAP_LOOKUP, ("airman_semantic.golden_queries a", [])]
+    base.routes = [INSTALLED, MAP_LOOKUP, ("pgpacer.golden_queries a", [])]
 
     assert await search_golden_queries(driver, embedder, "my_map", "find") == []
 
@@ -514,7 +498,7 @@ async def test_create_golden_query_allowed_in_restricted_with_flag(
     base.routes = [
         INSTALLED,
         MAP_LOOKUP,
-        ("INSERT INTO airman_semantic.golden_queries", rows({"name": "test"})),
+        ("INSERT INTO pgpacer.golden_queries", rows({"name": "test"})),
     ]
 
     with patch(FLAG, True):
@@ -556,7 +540,7 @@ async def test_delete_golden_query_allowed_in_restricted_with_flag(safe_sql_driv
     driver, base = safe_sql_driver
     base.routes = [
         INSTALLED,
-        ("DELETE FROM airman_semantic.golden_queries", rows({"name": "test"})),
+        ("DELETE FROM pgpacer.golden_queries", rows({"name": "test"})),
     ]
 
     with patch(FLAG, True):

@@ -15,8 +15,8 @@ import psycopg
 import pytest
 import pytest_asyncio
 
-from pg_airman_mcp.semantics.embeddings import HashEmbeddingProvider
-from pg_airman_mcp.sql import SafeSqlDriver, SqlDriver
+from pgpacer.semantics.embeddings import HashEmbeddingProvider
+from pgpacer.sql import SafeSqlDriver, SqlDriver
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def pgvector_dsn() -> Generator[str, None, None]:
         try:
             container = client.containers.run(
                 PGVECTOR_IMAGE,
-                name=f"airman-pgvector-test-{os.urandom(4).hex()}",
+                name=f"pgpacer-pgvector-test-{os.urandom(4).hex()}",
                 environment={
                     "POSTGRES_PASSWORD": "test_password",
                     "POSTGRES_HOST_AUTH_METHOD": "trust",

@@ -1,6 +1,6 @@
 """Database helpers shared by the semantic integration tests."""
 
-from pg_airman_mcp.sql import SqlDriver
+from pgpacer.sql import SqlDriver
 
 
 async def run_sql(driver: SqlDriver, *statements: str) -> None:

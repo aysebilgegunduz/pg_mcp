@@ -1,7 +1,7 @@
 """Semantic Knowledge Base tools backed by pgvector.
 
 A knowledge map stores an embedding of every table, view and column in a set
-of schemas (``airman_semantic.knowledge_map_entries``) so schema elements can be found
+of schemas (``pgpacer.knowledge_map_entries``) so schema elements can be found
 by natural-language similarity search. Embeddings come from the server's
 configured EmbeddingProvider; refreshes re-embed only entities whose
 description changed.
@@ -11,7 +11,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
-from pg_airman_mcp.sql import SafeSqlDriver, SqlDriver
+from pgpacer.sql import SafeSqlDriver, SqlDriver
 
 from .catalog import (
     CatalogEntity,
@@ -64,7 +64,7 @@ _SEARCH_SQL = """
                CASE WHEN vector_dims(e.embedding) = q.dims
                     THEN 1 - (e.embedding <=> q.embedding)
                END AS similarity
-        FROM airman_semantic.knowledge_map_entries e, q
+        FROM pgpacer.knowledge_map_entries e, q
         WHERE e.map_name = %s
           AND e.entity_type = ANY(%s::text[])
     ) s
@@ -78,18 +78,18 @@ _STATS_SQL = """
            count(*) FILTER (WHERE entity_type = 'Table') AS tables,
            count(*) FILTER (WHERE entity_type = 'View') AS views,
            count(*) FILTER (WHERE entity_type = 'Column') AS columns
-    FROM airman_semantic.knowledge_map_entries
+    FROM pgpacer.knowledge_map_entries
     WHERE map_name = %s
 """
 
 _STORED_HASHES_SQL = """
     SELECT schema_name, relation_name, column_name, content_hash
-    FROM airman_semantic.knowledge_map_entries
+    FROM pgpacer.knowledge_map_entries
     WHERE map_name = %s
 """
 
 _DELETE_ENTITIES_SQL = """
-    DELETE FROM airman_semantic.knowledge_map_entries e
+    DELETE FROM pgpacer.knowledge_map_entries e
     USING unnest(%s::text[], %s::text[], %s::text[])
           AS d(schema_name, relation_name, column_name)
     WHERE e.map_name = %s
@@ -99,7 +99,7 @@ _DELETE_ENTITIES_SQL = """
 """
 
 _UPSERT_ENTITIES_SQL = """
-    INSERT INTO airman_semantic.knowledge_map_entries AS e
+    INSERT INTO pgpacer.knowledge_map_entries AS e
         (map_name, schema_name, relation_name, column_name, entity_type,
          definition, comment, content_hash, embedding)
     SELECT %s::text, u.schema_name, u.relation_name, u.column_name, u.entity_type,
@@ -209,7 +209,7 @@ async def list_knowledge_maps(
         """
         SELECT name, model_name, dimensions, schemas,
                'Disabled' AS auto_processing, created_at, refreshed_at
-        FROM airman_semantic.knowledge_maps
+        FROM pgpacer.knowledge_maps
         ORDER BY name
         """
     )
@@ -284,15 +284,14 @@ async def refresh_knowledge_map(
         async with conn.cursor() as cur:
             # Lock the knowledge map row so concurrent refreshes/deletes serialise.
             await cur.execute(
-                "SELECT 1 FROM airman_semantic.knowledge_maps WHERE name = %s "
-                "FOR UPDATE",
+                "SELECT 1 FROM pgpacer.knowledge_maps WHERE name = %s FOR UPDATE",
                 [knowledge_map.name],
             )
             if await cur.fetchone() is None:
                 raise ValueError(f"Knowledge map '{knowledge_map.name}' not found")
             await _apply_plan(cur, knowledge_map.name, plan, vectors)
             await cur.execute(
-                "UPDATE airman_semantic.knowledge_maps SET refreshed_at = now() "
+                "UPDATE pgpacer.knowledge_maps SET refreshed_at = now() "
                 "WHERE name = %s",
                 [knowledge_map.name],
             )
@@ -313,7 +312,7 @@ async def create_knowledge_map(
 ) -> str:
     """Create a knowledge map over the given schemas.
 
-    Installs the ``airman_semantic`` storage schema on first use, embeds every
+    Installs the ``pgpacer`` storage schema on first use, embeds every
     table, view and column, and stores the knowledge map atomically.
 
     Args:
@@ -341,7 +340,7 @@ async def create_knowledge_map(
     # Fail fast before spending embedding calls; the INSERT below is the
     # authoritative uniqueness check.
     if await driver.execute_query(
-        "SELECT 1 FROM airman_semantic.knowledge_maps WHERE name = %s", [map_name]
+        "SELECT 1 FROM pgpacer.knowledge_maps WHERE name = %s", [map_name]
     ):
         raise ValueError(f"Knowledge map '{map_name}' already exists")
 
@@ -358,7 +357,7 @@ async def create_knowledge_map(
         async with conn.cursor() as cur:
             await cur.execute(
                 """
-                INSERT INTO airman_semantic.knowledge_maps
+                INSERT INTO pgpacer.knowledge_maps
                     (name, model_name, dimensions, schemas, refreshed_at)
                 VALUES (%s, %s, %s, %s::text[], now())
                 ON CONFLICT (name) DO NOTHING
@@ -405,7 +404,7 @@ async def delete_knowledge_map(
     if not await is_installed(driver):
         raise ValueError(f"Knowledge map '{map_name}' not found")
     rows = await driver.execute_query(
-        "DELETE FROM airman_semantic.knowledge_maps WHERE name = %s RETURNING name",
+        "DELETE FROM pgpacer.knowledge_maps WHERE name = %s RETURNING name",
         [map_name],
     )
     if not rows:

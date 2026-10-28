@@ -14,7 +14,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from pg_airman_mcp.sql import SafeSqlDriver, SqlDriver
+from pgpacer.sql import SafeSqlDriver, SqlDriver
 
 # Relation kinds included in a knowledge map. Partitions are skipped: their
 # parent partitioned table already describes them.

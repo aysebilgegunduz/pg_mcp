@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fake_driver import FakeDriver, rows
 
-from pg_airman_mcp.semantics.embeddings import (
+from pgpacer.semantics.embeddings import (
     HashEmbeddingProvider,
     OpenAICompatibleEmbeddingProvider,
 )
-from pg_airman_mcp.semantics.knowledge_map_tools import (
+from pgpacer.semantics.knowledge_map_tools import (
     create_knowledge_map,
     delete_knowledge_map,
     get_knowledge_map_stats,
@@ -18,11 +18,11 @@ from pg_airman_mcp.semantics.knowledge_map_tools import (
     refresh_knowledge_map,
     search_knowledge_map,
 )
-from pg_airman_mcp.sql import SafeSqlDriver
+from pgpacer.sql import SafeSqlDriver
 
 MAP_ROW = {
     "name": "test_map",
-    "model_name": "airman-hash-v1",
+    "model_name": "pgpacer-hash-v1",
     "dimensions": 64,
     "schemas": ["sales"],
     "refreshed_at": datetime(2026, 1, 1, tzinfo=UTC),
@@ -45,7 +45,7 @@ COLUMN = {
 
 INSTALLED = ("to_regclass", rows({"installed": True}))
 NOT_INSTALLED = ("to_regclass", rows({"installed": False}))
-MAP_LOOKUP = ("FROM airman_semantic.knowledge_maps\n        WHERE name", rows(MAP_ROW))
+MAP_LOOKUP = ("FROM pgpacer.knowledge_maps\n        WHERE name", rows(MAP_ROW))
 CATALOG = [
     ("FROM pg_catalog.pg_class c", rows(RELATION)),
     ("FROM pg_catalog.pg_attribute", rows(COLUMN)),
@@ -78,7 +78,7 @@ async def test_search_knowledge_map_basic(embedder):
         [
             INSTALLED,
             MAP_LOOKUP,
-            ("airman_semantic.knowledge_map_entries e", rows(result_row)),
+            ("pgpacer.knowledge_map_entries e", rows(result_row)),
         ]
     )
 
@@ -98,7 +98,7 @@ async def test_search_knowledge_map_basic(embedder):
 @pytest.mark.asyncio
 async def test_search_knowledge_map_entity_filter_is_parameterized(embedder):
     driver = FakeDriver(
-        [INSTALLED, MAP_LOOKUP, ("airman_semantic.knowledge_map_entries e", [])]
+        [INSTALLED, MAP_LOOKUP, ("pgpacer.knowledge_map_entries e", [])]
     )
 
     await search_knowledge_map(
@@ -159,7 +159,7 @@ async def test_search_knowledge_map_validates_inputs(embedder, kwargs, message):
 
 @pytest.mark.asyncio
 async def test_search_knowledge_map_unknown_map(embedder):
-    driver = FakeDriver([INSTALLED, ("FROM airman_semantic.knowledge_maps", [])])
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.knowledge_maps", [])])
 
     with pytest.raises(ValueError, match="Knowledge map 'missing_map' not found"):
         await search_knowledge_map(driver, embedder, "missing_map", "query")
@@ -213,7 +213,7 @@ async def test_list_knowledge_maps():
                 rows(
                     {
                         "name": "analytics_map",
-                        "model_name": "airman-hash-v1",
+                        "model_name": "pgpacer-hash-v1",
                         "dimensions": 512,
                         "schemas": ["public", "sales"],
                         "auto_processing": "Disabled",
@@ -278,13 +278,13 @@ async def test_get_knowledge_map_stats_reports_pending_changes():
     assert result["total"] == 1
     assert result["tables"] == 1
     assert result["pending"] == 2
-    assert result["model_name"] == "airman-hash-v1"
+    assert result["model_name"] == "pgpacer-hash-v1"
     assert result["refreshed_at"] == MAP_ROW["refreshed_at"].isoformat()
 
 
 @pytest.mark.asyncio
 async def test_get_knowledge_map_stats_not_found():
-    driver = FakeDriver([INSTALLED, ("FROM airman_semantic.knowledge_maps", [])])
+    driver = FakeDriver([INSTALLED, ("FROM pgpacer.knowledge_maps", [])])
 
     with pytest.raises(ValueError, match="not found"):
         await get_knowledge_map_stats(driver, "nonexistent_map")
@@ -361,8 +361,8 @@ async def test_refresh_knowledge_map_applies_changes_in_one_transaction(embedder
     assert driver.transactions == [False]
     statements = [c.args[0] for c in driver.cursor.execute.call_args_list]
     assert "FOR UPDATE" in statements[0]
-    assert "DELETE FROM airman_semantic.knowledge_map_entries" in statements[1]
-    assert "INSERT INTO airman_semantic.knowledge_map_entries" in statements[2]
+    assert "DELETE FROM pgpacer.knowledge_map_entries" in statements[1]
+    assert "INSERT INTO pgpacer.knowledge_map_entries" in statements[2]
     assert "refreshed_at = now()" in statements[3]
     upsert_params = driver.cursor.execute.call_args_list[2].args[1]
     assert upsert_params[0] == "test_map"
@@ -387,7 +387,7 @@ async def test_refresh_knowledge_map_rejects_model_mismatch():
         ([], "non-empty list"),
         (["pg_catalog"], "System schema"),
         (["information_schema"], "System schema"),
-        (["airman_semantic"], "System schema"),
+        (["pgpacer"], "System schema"),
         (["x" * 64], "Invalid schema name"),
         ([""], "Invalid schema name"),
         ([None], "Invalid schema name"),
@@ -419,7 +419,7 @@ async def test_create_knowledge_map_rejects_duplicates(embedder):
         [
             INSTALLED,
             ("SELECT nspname FROM", rows({"nspname": "sales"})),
-            ("SELECT 1 FROM airman_semantic.knowledge_maps", rows({"?column?": 1})),
+            ("SELECT 1 FROM pgpacer.knowledge_maps", rows({"?column?": 1})),
         ]
     )
 
@@ -435,7 +435,7 @@ async def test_create_knowledge_map_stores_map_and_entities(embedder):
         [
             INSTALLED,
             ("SELECT nspname FROM", rows({"nspname": "sales"})),
-            ("SELECT 1 FROM airman_semantic.knowledge_maps", []),
+            ("SELECT 1 FROM pgpacer.knowledge_maps", []),
             *CATALOG,
         ],
         fetchone_results=[("test_map",)],
@@ -447,13 +447,13 @@ async def test_create_knowledge_map_stores_map_and_entities(embedder):
 
     assert result == (
         "Created knowledge map 'test_map' with 2 entities "
-        "(1 tables, 0 views, 1 columns) using model 'airman-hash-v1'"
+        "(1 tables, 0 views, 1 columns) using model 'pgpacer-hash-v1'"
     )
     insert_map = driver.cursor.execute.call_args_list[0].args
-    assert "INSERT INTO airman_semantic.knowledge_maps" in insert_map[0]
-    assert insert_map[1] == ["test_map", "airman-hash-v1", 64, ["sales"]]
+    assert "INSERT INTO pgpacer.knowledge_maps" in insert_map[0]
+    assert insert_map[1] == ["test_map", "pgpacer-hash-v1", 64, ["sales"]]
     upsert = driver.cursor.execute.call_args_list[1].args
-    assert "INSERT INTO airman_semantic.knowledge_map_entries" in upsert[0]
+    assert "INSERT INTO pgpacer.knowledge_map_entries" in upsert[0]
     assert len(upsert[1][-1]) == 2  # two embeddings
 
 
@@ -473,7 +473,7 @@ async def test_delete_knowledge_map():
     driver = FakeDriver(
         [
             INSTALLED,
-            ("DELETE FROM airman_semantic.knowledge_maps", rows({"name": "k"})),
+            ("DELETE FROM pgpacer.knowledge_maps", rows({"name": "k"})),
         ]
     )
 
@@ -485,7 +485,7 @@ async def test_delete_knowledge_map():
 
 @pytest.mark.asyncio
 async def test_delete_knowledge_map_not_found():
-    driver = FakeDriver([INSTALLED, ("DELETE FROM airman_semantic.knowledge_maps", [])])
+    driver = FakeDriver([INSTALLED, ("DELETE FROM pgpacer.knowledge_maps", [])])
 
     with pytest.raises(ValueError, match="not found"):
         await delete_knowledge_map(driver, "test_map")

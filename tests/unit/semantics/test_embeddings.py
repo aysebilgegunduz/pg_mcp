@@ -8,7 +8,7 @@ import httpx
 import pytest
 import respx
 
-from pg_airman_mcp.semantics.embeddings import (
+from pgpacer.semantics.embeddings import (
     HASH_MODEL_NAME,
     MAX_INPUT_CHARS,
     EmbeddingError,
@@ -39,7 +39,7 @@ def ok_response(vectors):
 @pytest.fixture(autouse=True)
 def no_sleep():
     """Retries back off with asyncio.sleep; skip the wait in tests."""
-    with patch("pg_airman_mcp.semantics.embeddings.asyncio.sleep", AsyncMock()):
+    with patch("pgpacer.semantics.embeddings.asyncio.sleep", AsyncMock()):
         yield
 
 

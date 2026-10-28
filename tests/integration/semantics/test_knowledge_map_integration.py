@@ -11,8 +11,8 @@ import pytest
 import pytest_asyncio
 from semantic_db import create_customer_schema, run_sql
 
-from pg_airman_mcp.semantics.embeddings import HashEmbeddingProvider
-from pg_airman_mcp.semantics.knowledge_map_tools import (
+from pgpacer.semantics.embeddings import HashEmbeddingProvider
+from pgpacer.semantics.knowledge_map_tools import (
     create_knowledge_map,
     delete_knowledge_map,
     get_knowledge_map_stats,
@@ -20,8 +20,8 @@ from pg_airman_mcp.semantics.knowledge_map_tools import (
     refresh_knowledge_map,
     search_knowledge_map,
 )
-from pg_airman_mcp.semantics.store import ensure_installed
-from pg_airman_mcp.sql import SafeSqlDriver, SqlDriver
+from pgpacer.semantics.store import ensure_installed
+from pgpacer.sql import SafeSqlDriver, SqlDriver
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ async def test_list_knowledge_maps(sql_driver, sample_map):
     results = await list_knowledge_maps(sql_driver)
 
     ours = next(r for r in results if r["name"] == MAP_NAME)
-    assert ours["model_name"] == "airman-hash-v1"
+    assert ours["model_name"] == "pgpacer-hash-v1"
     assert ours["dimensions"] == 256
     assert ours["schemas"] == [SCHEMA]
     assert ours["auto_processing"] == "Disabled"
@@ -109,7 +109,7 @@ async def test_create_map_with_missing_schema_fails(sql_driver, sample_map, embe
 @pytest.mark.asyncio
 async def test_concurrent_schema_install_is_safe(sql_driver, pgvector_dsn):
     """Several servers installing the storage schema at once must not fail."""
-    await run_sql(sql_driver, "DROP SCHEMA IF EXISTS airman_semantic CASCADE")
+    await run_sql(sql_driver, "DROP SCHEMA IF EXISTS pgpacer CASCADE")
     # One driver (pool) per simulated server process, each already connected.
     drivers = [SqlDriver(engine_url=pgvector_dsn) for _ in range(3)]
     for driver in drivers:
@@ -252,8 +252,7 @@ async def test_delete_map_removes_entities(sql_driver, sample_map):
 
     assert MAP_NAME not in [r["name"] for r in await list_knowledge_maps(sql_driver)]
     rows = await sql_driver.execute_query(
-        "SELECT count(*) AS n FROM airman_semantic.knowledge_map_entries "
-        "WHERE map_name = %s",
+        "SELECT count(*) AS n FROM pgpacer.knowledge_map_entries WHERE map_name = %s",
         [MAP_NAME],
     )
     assert rows is not None and rows[0].cells["n"] == 0
@@ -312,8 +311,8 @@ async def test_least_privilege_reader_can_search(
         sql_driver,
         f"DROP ROLE IF EXISTS {role}",
         f"CREATE ROLE {role} LOGIN",
-        f"GRANT USAGE ON SCHEMA airman_semantic TO {role}",
-        f"GRANT SELECT ON ALL TABLES IN SCHEMA airman_semantic TO {role}",
+        f"GRANT USAGE ON SCHEMA pgpacer TO {role}",
+        f"GRANT SELECT ON ALL TABLES IN SCHEMA pgpacer TO {role}",
     )
     reader = SqlDriver(engine_url=pgvector_dsn.replace("postgres@", f"{role}@", 1))
     reader.connect()
@@ -325,7 +324,7 @@ async def test_least_privilege_reader_can_search(
             await reader.conn.close()
         await run_sql(
             sql_driver,
-            f"REVOKE ALL ON ALL TABLES IN SCHEMA airman_semantic FROM {role}",
-            f"REVOKE ALL ON SCHEMA airman_semantic FROM {role}",
+            f"REVOKE ALL ON ALL TABLES IN SCHEMA pgpacer FROM {role}",
+            f"REVOKE ALL ON SCHEMA pgpacer FROM {role}",
             f"DROP ROLE {role}",
         )

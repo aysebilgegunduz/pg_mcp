@@ -2,8 +2,8 @@ import logging
 
 import pytest
 
-from pg_airman_mcp.database_health import DatabaseHealthTool
-from pg_airman_mcp.sql import SqlDriver
+from pgpacer.database_health import DatabaseHealthTool
+from pgpacer.sql import SqlDriver
 
 logger = logging.getLogger(__name__)
 

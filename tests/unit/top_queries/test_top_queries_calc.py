@@ -2,10 +2,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import pg_airman_mcp.top_queries.top_queries_calc as top_queries_module
-from pg_airman_mcp.sql import SqlDriver
-from pg_airman_mcp.sql.extension_utils import ExtensionStatus
-from pg_airman_mcp.top_queries import TopQueriesCalc
+import pgpacer.top_queries.top_queries_calc as top_queries_module
+from pgpacer.sql import SqlDriver
+from pgpacer.sql.extension_utils import ExtensionStatus
+from pgpacer.top_queries import TopQueriesCalc
 
 
 class MockSqlRowResult:

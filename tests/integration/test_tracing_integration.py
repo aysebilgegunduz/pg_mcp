@@ -13,8 +13,8 @@ import psycopg
 import pytest
 import pytest_asyncio
 
-from pg_airman_mcp.sql import DbConnPool, SqlDriver, tracing_application_name
-from pg_airman_mcp.sql.safe_sql import SafeSqlDriver
+from pgpacer.sql import DbConnPool, SqlDriver, tracing_application_name
+from pgpacer.sql.safe_sql import SafeSqlDriver
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +159,9 @@ class TestTracingSetApplicationName:
 
     @pytest.mark.asyncio
     async def test_composed_token_and_purpose(self, tracing_pool):
-        """Composed airman:<purpose>/<session> value is visible via current_setting."""
+        """Composed pgpacer:<purpose>/<session> value is visible via current_setting."""
         driver = SqlDriver(conn=tracing_pool)
-        composed_value = "airman:credit-scoring/abc12345"
+        composed_value = "pgpacer:credit-scoring/abc12345"
 
         reset_token = tracing_application_name.set(composed_value)
         try:

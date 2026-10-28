@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from pg_airman_mcp.sql import SqlDriver
+from pgpacer.sql import SqlDriver
 
 Route = tuple[str, list[SqlDriver.RowResult] | None]
 
