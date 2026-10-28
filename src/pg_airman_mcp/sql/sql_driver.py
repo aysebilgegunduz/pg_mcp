@@ -1,5 +1,6 @@
 """SQL driver adapter for PostgreSQL connections."""
 
+import asyncio
 import contextvars
 import logging
 import re
@@ -9,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any, LiteralString, cast
 from urllib.parse import urlparse, urlunparse
 
+import psycopg
 from psycopg import AsyncConnection
 from psycopg import sql as psycopg_sql
 from psycopg.rows import dict_row
@@ -65,6 +67,24 @@ def obfuscate_password(text: str | None) -> str | None:
     return text
 
 
+# SQLSTATE prefixes meaning the connection itself failed: class 08 (connection
+# exception) and 57P* (server shutdown, cannot connect now, database dropped).
+_CONNECTION_FAILURE_SQLSTATES = ("08", "57P")
+
+
+def is_connection_failure(error: BaseException) -> bool:
+    """Return True if an error means the connection or pool is unusable.
+
+    Errors that a healthy server reports about the query itself (syntax,
+    permissions, constraint violations, statement timeouts, ...) are not
+    connection failures and must not cause the pool to be rebuilt.
+    """
+    if not isinstance(error, psycopg.OperationalError | psycopg.InterfaceError):
+        return False
+    sqlstate = error.sqlstate
+    return sqlstate is None or sqlstate.startswith(_CONNECTION_FAILURE_SQLSTATES)
+
+
 class DbConnPool:
     """Database connection manager using psycopg's connection pool."""
 
@@ -73,6 +93,9 @@ class DbConnPool:
         self.pool: AsyncConnectionPool | None = None
         self._is_valid = False
         self._last_error = None
+        # Serialises (re)creating the pool. Without it, concurrent callers each
+        # build a new pool and close the one the others are using.
+        self._connect_lock = asyncio.Lock()
 
     async def pool_connect(
         self, connection_url: str | None = None
@@ -82,6 +105,13 @@ class DbConnPool:
         if self.pool and self._is_valid:
             return self.pool
 
+        async with self._connect_lock:
+            # Another task may have connected while this one was waiting.
+            if self.pool and self._is_valid:
+                return self.pool
+            return await self._create_pool(connection_url)
+
+    async def _create_pool(self, connection_url: str | None) -> AsyncConnectionPool:
         url = connection_url or self.connection_url
         self.connection_url = url
         if not url:
@@ -231,12 +261,15 @@ class SqlDriver:
                     self.conn, query, params, force_readonly=force_readonly
                 )
         except Exception as e:
-            # Mark pool as invalid if there was a connection issue
-            if self.conn and self.is_pool:
-                self.conn._is_valid = False  # type: ignore
-                self.conn._last_error = str(e)  # type: ignore
-            elif self.conn and not self.is_pool:
-                self.conn = None
+            # Mark pool as invalid only if the connection itself failed. An
+            # ordinary SQL error leaves the pool healthy, and rebuilding it
+            # would close connections that concurrent queries are using.
+            if is_connection_failure(e):
+                if self.conn and self.is_pool:
+                    self.conn._is_valid = False  # type: ignore
+                    self.conn._last_error = str(e)  # type: ignore
+                elif self.conn and not self.is_pool:
+                    self.conn = None
 
             raise e
 
